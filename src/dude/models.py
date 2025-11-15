@@ -34,9 +34,6 @@ class AgentConfig(BaseModel):
 
     agent_type: TaskType
     model_tier: ModelTier
-    max_tokens: int = 4000
-    temperature: float = 0.2
-    timeout_seconds: int = 300
 
 
 class ExecutionResult(BaseModel):

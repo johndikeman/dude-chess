@@ -165,6 +165,7 @@
             packages = [
               virtualenv
               pkgs.uv
+              pkgs.nodejs_24
             ];
 
             env = {

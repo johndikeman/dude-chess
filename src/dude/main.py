@@ -46,16 +46,16 @@ def setup_logging():
         "%(asctime)s - %(name)s - %(levelname)s - [%(funcName)s] - %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
-    
+
     # File formatter includes more details
     file_formatter = logging.Formatter(
         "%(asctime)s.%(msecs)03d - %(name)s - %(levelname)s - [%(funcName)s:%(lineno)d] - %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
-    
+
     console_handler.setFormatter(console_formatter)
     file_handler.setFormatter(file_formatter)
-    
+
     logger.addHandler(console_handler)
     logger.addHandler(file_handler)
 
@@ -72,11 +72,11 @@ import dotenv
 dotenv.load_dotenv()
 logger.debug("Environment variables loaded from .env file")
 
-import openlit
+from lmnr import Laminar
 
-openlit.init(otlp_endpoint="http://192.168.8.184:30318")
-
-logger.debug("OpenTelemetry instrumentation initialized")
+Laminar.initialize(
+    project_api_key="6gbQMsICyAmUq3CYUhCT0IlzVVn44WQN2uSFKSJ7x3723fhRvVp3sGqEMyC7Hsd6"
+)
 
 
 # --- Setup Runner and Session ---
@@ -165,26 +165,28 @@ async def call_agent_async(user_input_topic: str):
             event_count += 1
 
             logger.debug(f"Event #{event_count} type: {type(event).__name__}")
-            
+
             # Log event attributes for tool tracking
             event_attrs = {}
             for attr in dir(event):
-                if not attr.startswith('_') and not callable(getattr(event, attr)):
+                if not attr.startswith("_") and not callable(getattr(event, attr)):
                     try:
                         value = getattr(event, attr)
                         event_attrs[attr] = str(value)[:200]  # Limit length
                     except Exception as e:
                         event_attrs[attr] = f"<Error accessing: {e}>"
-            
-            logger.debug(f"Event attributes: {json.dumps(event_attrs, indent=2, default=str)}")
+
+            logger.debug(
+                f"Event attributes: {json.dumps(event_attrs, indent=2, default=str)}"
+            )
 
             # Check for tool calls and executions
-            if hasattr(event, 'tool_call'):
+            if hasattr(event, "tool_call"):
                 tool_call_count += 1
                 tool_call = event.tool_call
                 logger.info(f"Tool Call #{tool_call_count}: {tool_call}")
-                
-            if hasattr(event, 'tool_response'):
+
+            if hasattr(event, "tool_response"):
                 tool_response = event.tool_response
                 logger.info(f"Tool Response: {str(tool_response)[:200]}...")
 
@@ -196,14 +198,16 @@ async def call_agent_async(user_input_topic: str):
             if hasattr(event, "model_dump"):
                 try:
                     event_dump = event.model_dump()
-                    logger.debug(f"Event dump: {json.dumps(event_dump, indent=2, default=str)[:500]}...")
+                    logger.debug(
+                        f"Event dump: {json.dumps(event_dump, indent=2, default=str)[:500]}..."
+                    )
                 except Exception as e:
                     logger.debug(f"Error dumping event: {e}")
-                    
+
             # Author tracking
-            author = getattr(event, 'author', 'unknown')
+            author = getattr(event, "author", "unknown")
             logger.debug(f"Processing event #{event_count} from author: {author}")
-            
+
             # Final response tracking
             if event.is_final_response() and event.content and event.content.parts:
                 response_text = event.content.parts[0].text
@@ -213,7 +217,9 @@ async def call_agent_async(user_input_topic: str):
                 logger.debug(f"Full response: {response_text}")
                 final_response = response_text
 
-        logger.info(f"Agent execution completed. Processed {event_count} events ({tool_call_count} tool calls)")
+        logger.info(
+            f"Agent execution completed. Processed {event_count} events ({tool_call_count} tool calls)"
+        )
         logger.debug(f"Final response captured: {final_response[:100]}...")
 
         print("\n--- Agent Interaction Result ---")

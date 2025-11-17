@@ -34,7 +34,7 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "mcp-python-interpreter>=1.2.3",
     "multilspy>=0.0.15",
-    "openlit>=1.36.1",
+    "lmnr[all]>=0.7.22",
 ]
 
 [project.optional-dependencies]

@@ -33,7 +33,7 @@ return final output in the format:
 %s
 
 """.format(
-    Plan.schema_json()
+    Plan.model_json_schema()
 )
 
 planner = LlmAgent(

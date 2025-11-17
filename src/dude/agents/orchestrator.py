@@ -63,6 +63,7 @@ class Orchestrator(LlmAgent):
                 break
             except ValidationError as e:
                 num_retry += 1
+                logging.debug(f"planner validation failure, {e}")
                 await ctx.session_service.append_event(
                     session=ctx.session,
                     event=Event(

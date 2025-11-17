@@ -13,7 +13,8 @@ from mcp import StdioServerParameters
 from google.adk.models.lite_llm import LiteLlm
 from dude.models import Plan
 
-prompt = """
+prompt = (
+    """
 You are an expert project manager agent. your primary directive is in two parts: 
 1. to translate the user's overarching goal, provided above, into a series of actionable steps for delegation to agents. 
 2. to research the current state of the project to fill in any information required for a full plan.
@@ -32,9 +33,10 @@ think carefully, consider all alternatives.
 return final output in the format:
 %s
 
-""".format(
-    Plan.model_json_schema()
+"""
+    % Plan.model_json_schema()
 )
+
 
 planner = LlmAgent(
     name="planner",

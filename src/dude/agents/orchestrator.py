@@ -21,6 +21,7 @@ import logging
 from dude.models import Plan
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
 class Orchestrator(LlmAgent):
@@ -54,7 +55,10 @@ class Orchestrator(LlmAgent):
         output_model: Plan | None = None
         num_retry = 0
         while num_retry < 3:
+            logging.debug(f"hello from orchestrator")
             async for event in self.planner_agent.run_async(ctx):
+                if event.is_final_response():
+                    break
                 yield event
 
             output = ctx.session.state.get("planner_output")

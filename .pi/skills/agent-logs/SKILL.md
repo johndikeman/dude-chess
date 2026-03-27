@@ -5,7 +5,7 @@ description: Access and search agent logs from agent.log or via journalctl for t
 
 # Agent Logs
 
-This skill provides access to the logs for the `dude-agent` service.
+This skill provides access to the logs for the `dude-agent` service and instructions for restarting the service
 
 ## Accessing Logs
 
@@ -25,6 +25,12 @@ journalctl --user -u dude-agent -n 100
 To follow the logs:
 ```bash
 journalctl --user -u dude-agent -f
+```
+
+to restart the agent:
+
+```
+sudo systemctl --user restart dude-agent
 ```
 
 ### Using agent.log

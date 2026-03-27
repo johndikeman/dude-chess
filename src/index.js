@@ -291,7 +291,7 @@ Context:
   log(`Executing: pi ${piArgs.join(" ")} in ${config.workDir}`);
 
   const piProcess = spawn("pi", piArgs, {
-    stdio: "inherit",
+    stdio: "pipe",
     cwd: config.workDir,
   });
 

@@ -288,9 +288,7 @@ Context:
     "--provider",
     "google-gemini-cli",
     "--model",
-    "gemini-2.5-pro",
-    "--api-key",
-    apiKey,
+    "gemini-3-flash-preview",
     "-p",
     prompt,
   ];

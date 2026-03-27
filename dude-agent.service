@@ -6,6 +6,7 @@ After=network.target
 Type=simple
 User=john
 WorkingDirectory=/home/john/dude
+ExecStartPre=/usr/bin/bash -c "[ -z \"$GEMINI_JSON_TOKEN\" ] || echo \"$GEMINI_JSON_TOKEN\" > /home/john/.pi/agent/auth.json"
 ExecStart=/usr/bin/nix develop --command npm start
 Restart=always
 EnvironmentFile=/home/john/dude/.env

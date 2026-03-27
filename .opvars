@@ -1,1 +1,2 @@
 DISCORD_TOKEN="op://AI/agent smith discord bot token/credential"
+GEMINI_JSON_TOKEN="op://AI/gemini-cli auth token/credential"

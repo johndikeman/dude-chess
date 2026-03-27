@@ -226,20 +226,14 @@ function addTask(task) {
 }
 
 async function getGeminiApiKey() {
-  try {
-    const token = execSync("gcloud auth print-access-token", {
-      encoding: "utf8",
-    }).trim();
-    const project = execSync("gcloud config get-value project", {
-      encoding: "utf8",
-    }).trim();
-    if (!project || project === "(unset)") {
-      log("Google Cloud project is unset.");
+  if (process.env.GEMINI_JSON_TOKEN) {
+    try {
+      const auth = JSON.parse(process.env.GEMINI_JSON_TOKEN);
+      return JSON.stringify(auth);
+    } catch (e) {
+      log("GEMINI_JSON_TOKEN is not valid JSON, using as raw token");
+      return JSON.stringify({ token: process.env.GEMINI_JSON_TOKEN });
     }
-    return JSON.stringify({ token, projectId: project });
-  } catch (err) {
-    log("Failed to get Google Cloud token. Make sure gcloud is logged in.");
-    return null;
   }
 }
 

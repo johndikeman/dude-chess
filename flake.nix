@@ -37,6 +37,7 @@
               gh
               google-cloud-sdk
               _1password-cli
+              chromium
             ];
             shellHook = ''
               export PATH=$PWD/node_modules/.bin:$PATH
@@ -88,6 +89,7 @@
                       pkgs.google-cloud-sdk
                       pkgs.nodejs_20
                       pkgs._1password-cli
+                      pkgs.chromium
                     ]
                   }:${config.services.dude-agent.package}/lib/node_modules/dude-agent/node_modules/.bin:/usr/bin:/bin"
                 ];

@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "description": "A self-improving AI agent",
   "main": "src/index.js",
+  "bin": {
+    "dude-agent": "src/index.js"
+  },
   "scripts": {
     "start": "node src/index.js",
     "test": "echo \"Error: no test specified\" && exit 1"

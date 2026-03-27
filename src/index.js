@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 require('dotenv').config();
 const { 
   Client, 
@@ -19,9 +20,9 @@ const client = new Client({
 });
 
 const OWNER_ID = process.env.OWNER_ID;
-const TASKS_FILE = path.join(__dirname, '../tasks.md');
-const CONFIG_FILE = path.join(__dirname, '../config.json');
-const LOG_FILE = path.join(__dirname, '../agent.log');
+const TASKS_FILE = path.join(process.cwd(), 'tasks.md');
+const CONFIG_FILE = path.join(process.cwd(), 'config.json');
+const LOG_FILE = path.join(process.cwd(), 'agent.log');
 
 function log(msg) {
   const line = `[${new Date().toISOString()}] ${msg}`;
@@ -65,6 +66,16 @@ const commands = [
       option.setName('path')
         .setDescription('Absolute path to the new working directory')
         .setRequired(true)),
+  new SlashCommandBuilder()
+    .setName('clone')
+    .setDescription('Clone a repository into the current or a new working directory')
+    .addStringOption(option => 
+      option.setName('repo')
+        .setDescription('GitHub repository (e.g., owner/repo)')
+        .setRequired(true))
+    .addStringOption(option => 
+      option.setName('path')
+        .setDescription('Path to clone into (optional, defaults to a subdirectory in current workDir)')),
   new SlashCommandBuilder()
     .setName('start')
     .setDescription('Start working on the next task'),
@@ -137,6 +148,28 @@ client.on('interactionCreate', async (interaction) => {
       await interaction.reply(`Working directory updated to: ${config.workDir}`);
     } else {
       await interaction.reply(`Directory does not exist: ${newDir}`);
+    }
+  }
+
+  if (commandName === 'clone') {
+    const repo = options.getString('repo');
+    const customPath = options.getString('path');
+    const clonePath = customPath ? path.resolve(customPath) : path.join(config.workDir, repo.split('/').pop());
+
+    await interaction.deferReply();
+    try {
+      if (fs.existsSync(clonePath)) {
+        await interaction.editReply(`Path already exists: ${clonePath}`);
+        return;
+      }
+      log(`Cloning ${repo} into ${clonePath}...`);
+      execSync(`gh repo clone ${repo} ${clonePath}`);
+      config.workDir = clonePath;
+      saveConfig();
+      await interaction.editReply(`Cloned \`${repo}\` to \`${clonePath}\` and updated working directory.`);
+    } catch (err) {
+      log(`Error cloning: ${err.message}`);
+      await interaction.editReply(`Failed to clone \`${repo}\`: ${err.message}`);
     }
   }
 

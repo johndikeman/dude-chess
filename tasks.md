@@ -1,4 +1,7 @@
 # Pending Tasks
+- [x] add better error feedback when pi exits. the error should be given as feedback to the interaction
+- [ ] add better error feedback when pi exits. the error should be given as feedback to the interaction
+- [ ] add better error feedback when pi exits. the error should be given as feedback to the interaction
 - [x] inspect the latest session file and continue the task to make an informational file about the project for agents to use
 - [x] have the agent post status updates to the discord about its current task. maybe use one message and keep editing it so it isn't spamming
 - [x] look at the second most recent run of the agent from the 28th. finish  off the task. don't worry about running the nix flake update and home-manager commands, just write the commands in the deploy script.

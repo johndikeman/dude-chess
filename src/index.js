@@ -11,6 +11,7 @@ const {
 const fs = require("fs");
 const path = require("path");
 const { execSync, spawn } = require("child_process");
+const stripAnsi = require("strip-ansi");
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
@@ -556,7 +557,16 @@ Context:
     cwd: config.workDir,
   });
 
+  piProcess.on("error", async (err) => {
+    log(`Failed to start pi process: ${err.message}`);
+    currentStatus = `Failed to start.`;
+    await updateDiscordStatus(true);
+    if (interaction)
+      interaction.followUp(`Failed to start pi process: ${err.message}`);
+  });
+
   let piOutput = "";
+  let piError = "";
   let statusMessage = null;
   let lastStatusUpdate = 0;
   const UPDATE_INTERVAL = 5000;
@@ -619,6 +629,7 @@ Context:
 
   piProcess.stderr.on("data", (data) => {
     const s = data.toString();
+    piError += s;
     process.stderr.write(s);
 
     // Also check stderr for quota errors
@@ -652,27 +663,72 @@ Context:
       log("pi finished successfully.");
       currentStatus = "Completed successfully.";
       await updateDiscordStatus(true);
-      if (interaction)
-        interaction.followUp(piOutput || "Task completed successfully (no output).");
+      if (interaction) {
+        const cleanedOutput = stripAnsi(piOutput.trim());
+        const truncatedOutput =
+          cleanedOutput.length > 1900
+            ? "..." + cleanedOutput.slice(-1900)
+            : cleanedOutput;
+        interaction.followUp(
+          truncatedOutput || "Task completed successfully (no output).",
+        );
+      }
     } else if (code !== 0 && isQuotaPause && pausedTaskId) {
       // Task was paused due to quota, already scheduled for resume
       log(`Task ${task} was paused due to quota, scheduled for resume.`);
       currentStatus = `Paused (quota). Resumes in ${formatDuration(
-        schedule.scheduled.find((t) => t.task === task && t.reason === "quota_resume")
-          ?.runAt - Date.now() || 0,
+        schedule.scheduled.find(
+          (t) => t.task === task && t.reason === "quota_resume",
+        )?.runAt - Date.now() || 0,
       )}.`;
       await updateDiscordStatus(true);
       if (interaction) {
-        interaction.followUp(
-          `Task ${task} was paused due to Google API quota exhaustion. Will resume automatically when quota resets.`,
-        );
+        const cleanedOutput = stripAnsi(piOutput.trim());
+        const truncatedOutput =
+          cleanedOutput.length > 1500
+            ? "..." + cleanedOutput.slice(-1500)
+            : cleanedOutput;
+
+        let response = `Task ${task} was paused due to Google API quota exhaustion. Will resume automatically when quota resets.`;
+        if (truncatedOutput) {
+          response += `\n\n**Output so far:**\n\`\`\`\n${truncatedOutput}\n\`\`\``;
+        }
+        interaction.followUp(response);
       }
     } else {
-      const errorMsg = `pi failed with code ${code}\n\n${piOutput}`;
+      let errorMsg = `**pi failed with code ${code}**\n\n`;
+
+      const cleanError = stripAnsi(piError.trim());
+      const cleanOutput = stripAnsi(piOutput.trim());
+
+      if (cleanError) {
+        const truncatedError =
+          cleanError.length > 800 ? "..." + cleanError.slice(-800) : cleanError;
+        errorMsg += `**Error Output:**\n\`\`\`\n${truncatedError}\n\`\`\`\n`;
+      }
+
+      if (cleanOutput) {
+        const truncatedOutput =
+          cleanOutput.length > 800
+            ? "..." + cleanOutput.slice(-800)
+            : cleanOutput;
+        errorMsg += `**Standard Output:**\n\`\`\`\n${truncatedOutput}\n\`\`\``;
+      }
+
+      if (!cleanError && !cleanOutput) {
+        errorMsg += "No output or error messages were captured.";
+      }
+
       currentStatus = `Failed with code ${code}.`;
       await updateDiscordStatus(true);
-      if (interaction) interaction.followUp(errorMsg);
-      log(errorMsg);
+
+      if (interaction) {
+        if (errorMsg.length > 2000) {
+          errorMsg = errorMsg.slice(0, 1997) + "...";
+        }
+        interaction.followUp(errorMsg);
+      }
+      log(`pi failed with code ${code}.`);
     }
   });
 }

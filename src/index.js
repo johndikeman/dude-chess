@@ -263,6 +263,7 @@ Your goal is to implement this task. your workspace is in (${config.workDir}).
 if the task is to improve yourself, this will be in the dude/ directory. if the directory does not exist, you can use the gh cli to clone johndikeman/dude.
 you can clone other repositories if needed.
 Create a feature branch to work on.
+When you are working on a task, you can report your status by printing a line starting with [STATUS] followed by your current activity. This status will be displayed in Discord.
 Once you have implemented the task, please ensure you have tested the changes (e.g., via 'npm test' or running the code).
 Then, commit the code to the feature branch and open a PR using gh cli.
 When the task is complete, mark it as done in the task file (${TASKS_FILE}) by changing [ ] to [x].
@@ -297,11 +298,44 @@ Context:
   });
 
   let piOutput = "";
+  let statusMessage = null;
+  let lastStatusUpdate = 0;
+  const UPDATE_INTERVAL = 5000;
+  let currentStatus = "Starting...";
+
+  if (interaction) {
+    statusMessage = await interaction.followUp(
+      `**Current Task:** ${task}\n**Status:** ${currentStatus}`,
+    );
+  }
+
+  const updateDiscordStatus = async (force = false) => {
+    if (!statusMessage) return;
+    const now = Date.now();
+    if (force || now - lastStatusUpdate > UPDATE_INTERVAL) {
+      lastStatusUpdate = now;
+      try {
+        await statusMessage.edit(
+          `**Current Task:** ${task}\n**Status:** ${currentStatus}`,
+        );
+      } catch (e) {
+        log(`Failed to update Discord status: ${e.message}`);
+      }
+    }
+  };
 
   piProcess.stdout.on("data", (data) => {
     const s = data.toString();
     piOutput += s;
     process.stdout.write(s);
+
+    const lines = s.split("\n");
+    for (const line of lines) {
+      if (line.includes("[STATUS]")) {
+        currentStatus = line.split("[STATUS]")[1].trim();
+        updateDiscordStatus();
+      }
+    }
   });
 
   piProcess.stderr.on("data", (data) => {
@@ -309,12 +343,17 @@ Context:
     process.stderr.write(s);
   });
 
-  piProcess.on("close", (code) => {
+  piProcess.on("close", async (code) => {
     if (code === 0) {
       log("pi finished successfully.");
-      if (interaction) interaction.followUp(piOutput || "Task completed successfully (no output).");
+      currentStatus = "Completed successfully.";
+      await updateDiscordStatus(true);
+      if (interaction)
+        interaction.followUp(piOutput || "Task completed successfully (no output).");
     } else {
       const errorMsg = `pi failed with code ${code}\n\n${piOutput}`;
+      currentStatus = `Failed with code ${code}.`;
+      await updateDiscordStatus(true);
       if (interaction) interaction.followUp(errorMsg);
       log(errorMsg);
     }

@@ -22,6 +22,7 @@ const LOG_FILE = path.join(process.cwd(), "agent.log");
 const REPO_BRIEF_FILE = path.join(process.cwd(), "REPO_BRIEF.md");
 
 let MODEL_CODE = "gemini-3-flash-preview";
+let MODEL_PROVIDER = "google-gemini-cli";
 
 function log(msg) {
   const line = `[${new Date().toISOString()}] ${msg}`;
@@ -101,7 +102,7 @@ const commands = [
       option
         .setName("code")
         .setDescription(
-          "the model code, ie gemini-3-flash-preview, gemini-3-pro-preview, gemini-2.5-pro",
+          "the model code, ie gemini-3-flash-preview, gemini-3-pro-preview, qwen3.5:122b, gemini-2.5-pro",
         )
         .setRequired(true),
     ),
@@ -174,6 +175,11 @@ client.on("interactionCreate", async (interaction) => {
 
   if (commandName === "modelcode") {
     const newCode = options.getString("code");
+    if (newCode === "qwen3.5:122b") {
+      MODEL_PROVIDER = "verda";
+    } else {
+      MODEL_PROVIDER = "google-gemini-cli";
+    }
     MODEL_CODE = newCode;
   }
 
@@ -306,7 +312,7 @@ Context:
 
   const piArgs = [
     "--provider",
-    "google-gemini-cli",
+    MODEL_PROVIDER,
     "--model",
     MODEL_CODE,
     "-p",

@@ -554,7 +554,7 @@ Current date: ${new Date().toLocaleString("en-US")}
 Your goal is to implement this task. your workspace is in (${config.workDir}).
 if the task is to improve yourself, this will be in the dude/ directory. if the directory does not exist, you can use the gh cli to clone johndikeman/dude.
 you can clone other repositories if needed.
-Create a feature branch to work on, pull in the most recent 'main' branch in case another user has made changes.
+Create a feature branch to work on, REMEMBER TO ALWAYS FIRST pull in the most recent 'main' branch and use it as the base of your feature branch in case another user has made changes, to avoid a merge conflict.
 when appropriate, write testcases to test new code.
 When you are working on a task, you can report your status by printing a line starting with [STATUS] followed by your current activity. This status will be displayed in Discord.
 Then, commit the code to the feature branch and open a PR using gh cli.

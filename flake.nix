@@ -93,6 +93,8 @@
               Unit = {
                 Description = "Dude Self-Improving AI Agent";
                 After = [ "network.target" ];
+                StartLimitBurst = "5";
+                StartLimitIntervalSec = "120s";
               };
               Service = {
                 Type = "simple";

@@ -646,24 +646,47 @@ Context:
       // Try to parse as JSON event (for --mode json)
       try {
         const event = JSON.parse(trimmed);
-        // Look for message events with content
-        if (
-          event.type === "message" &&
-          event.message &&
-          event.message.content
-        ) {
+        
+        // Handle message events (start, update, end)
+        if (event.message && event.message.content) {
           for (const content of event.message.content) {
-            // Check for text content with [STATUS]
-            if (content.type === "text" && content.text) {
-              // Find the last [STATUS] line in this text
-              const statusMatch = content.text.match(/\[STATUS\] (.+)/);
-              if (statusMatch) {
-                currentStatus = statusMatch[1].trim();
-                updateDiscordStatus();
+            let text = "";
+            if (content.type === "text") text = content.text;
+            else if (content.type === "thinking") text = content.thinking;
+
+            if (text) {
+              const lines = text.split("\n");
+              for (const line of lines) {
+                const trimmedLine = line.trim();
+                if (trimmedLine.includes("[STATUS]")) {
+                  currentStatus = trimmedLine.split("[STATUS]")[1].trim();
+                  updateDiscordStatus();
+                }
               }
             }
           }
         }
+
+        // Handle tool execution events
+        const toolContent = 
+          (event.type === "tool_execution_update" && event.partialResult && event.partialResult.content) ||
+          (event.type === "tool_execution_end" && event.result && event.result.content);
+        
+        if (toolContent) {
+          for (const content of toolContent) {
+            if (content.type === "text" && content.text) {
+              const lines = content.text.split("\n");
+              for (const line of lines) {
+                const trimmedLine = line.trim();
+                if (trimmedLine.includes("[STATUS]")) {
+                  currentStatus = trimmedLine.split("[STATUS]")[1].trim();
+                  updateDiscordStatus();
+                }
+              }
+            }
+          }
+        }
+
         // Check for quota errors in stdout
         if (SCHEDULER.isQuotaError(line)) {
           const errorInfo = SCHEDULER.parseQuotaError(line);

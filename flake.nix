@@ -80,7 +80,7 @@
             };
             workingDirectory = lib.mkOption {
               type = lib.types.str;
-              default = "${config.home.homeDirectory}/dude";
+              default = "${config.home.homeDirectory}/dude-workspace";
             };
             configDirectory = lib.mkOption {
               type = lib.types.str;

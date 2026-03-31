@@ -20,9 +20,9 @@ jobs:
             [ -f /nix/var/nix/profiles/default/etc/profile.d/nix.sh ] && . /nix/var/nix/profiles/default/etc/profile.d/nix.sh
             export PATH=$PATH:/nix/var/nix/profiles/default/bin:~/.nix-profile/bin
             cd ~/.config/home-manager
-            git pull origin vps-nix
+            git pull origin vps_nix
             nix flake update dude
             home-manager switch
             git add flake.lock
             git commit -m "chore: update dude flake.lock [skip ci]" || true
-            git push origin vps-nix
+            git push origin vps_nix

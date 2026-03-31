@@ -2,6 +2,7 @@
   "name": "dude-agent",
   "version": "0.1.0",
   "description": "A self-improving AI agent",
+  "type": "module",
   "main": "src/index.js",
   "bin": {
     "dude-agent": "src/index.js"

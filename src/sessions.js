@@ -1,5 +1,5 @@
-const fs = require("fs");
-const path = require("path");
+import fs from "fs";
+import path from "path";
 
 const CONFIG_DIR = process.env.DUDE_CONFIG_DIR || process.cwd();
 const SESSIONS_FILE = path.join(CONFIG_DIR, "sessions.json");
@@ -14,7 +14,7 @@ function log(msg) {
 }
 
 // Load sessions from file
-function loadSessions() {
+export function loadSessions() {
   if (!fs.existsSync(SESSIONS_FILE)) {
     return { active: [], completed: [] };
   }
@@ -28,12 +28,12 @@ function loadSessions() {
 }
 
 // Save sessions to file
-function saveSessions(sessions) {
+export function saveSessions(sessions) {
   fs.writeFileSync(SESSIONS_FILE, JSON.stringify(sessions, null, 2));
 }
 
 // Create a new session entry
-function createSession(task, options = {}) {
+export function createSession(task, options = {}) {
   const sessions = loadSessions();
   const now = Date.now();
 
@@ -56,25 +56,25 @@ function createSession(task, options = {}) {
 }
 
 // Get an active session by ID
-function getSession(sessionId) {
+export function getSession(sessionId) {
   const sessions = loadSessions();
   return sessions.active.find((s) => s.id === sessionId) || null;
 }
 
 // Get session by Discord message ID
-function getSessionByDiscordMessage(messageId) {
+export function getSessionByDiscordMessage(messageId) {
   const sessions = loadSessions();
   return sessions.active.find((s) => s.discordMessageId === messageId) || null;
 }
 
 // Get session by PR number and repo
-function getSessionByPR(prNumber, prRepo) {
+export function getSessionByPR(prNumber, prRepo) {
   const sessions = loadSessions();
   return sessions.active.find((s) => s.prNumber === prNumber && s.prRepo === prRepo) || null;
 }
 
 // Update a session
-function updateSession(sessionId, updates) {
+export function updateSession(sessionId, updates) {
   const sessions = loadSessions();
   const index = sessions.active.findIndex((s) => s.id === sessionId);
   if (index === -1) return null;
@@ -85,17 +85,17 @@ function updateSession(sessionId, updates) {
 }
 
 // Link a Discord message to a session
-function linkDiscordMessage(sessionId, messageId, channelId) {
+export function linkDiscordMessage(sessionId, messageId, channelId) {
   return updateSession(sessionId, { discordMessageId: messageId, discordChannelId: channelId });
 }
 
 // Link a PR to a session
-function linkPR(sessionId, prNumber, prRepo) {
+export function linkPR(sessionId, prNumber, prRepo) {
   return updateSession(sessionId, { prNumber, prRepo });
 }
 
 // Complete a session
-function completeSession(sessionId) {
+export function completeSession(sessionId) {
   const sessions = loadSessions();
   const index = sessions.active.findIndex((s) => s.id === sessionId);
   if (index === -1) return null;
@@ -115,7 +115,7 @@ function completeSession(sessionId) {
 }
 
 // Archive old completed sessions
-function archiveCompletedSessions() {
+export function archiveCompletedSessions() {
   const sessions = loadSessions();
   const now = Date.now();
   const oneDayAgo = now - 24 * 60 * 60 * 1000;
@@ -126,7 +126,7 @@ function archiveCompletedSessions() {
 }
 
 // Get active sessions
-function getActiveSessions() {
+export function getActiveSessions() {
   const sessions = loadSessions();
   return sessions.active.map((s) => ({
     id: s.id,
@@ -139,25 +139,9 @@ function getActiveSessions() {
 }
 
 // Find sessions ready to resume (have user feedback via reply/comment)
-function getSuspendingSessions() {
+export function getSuspendingSessions() {
   const sessions = loadSessions();
   // This would be populated by external checks (GitHub webhook, Discord events)
   // For now, return empty - checking is done via external mechanisms
   return [];
 }
-
-module.exports = {
-  loadSessions,
-  saveSessions,
-  createSession,
-  getSession,
-  getSessionByDiscordMessage,
-  getSessionByPR,
-  updateSession,
-  linkDiscordMessage,
-  linkPR,
-  completeSession,
-  archiveCompletedSessions,
-  getActiveSessions,
-  getSuspendingSessions,
-};

@@ -1,18 +1,21 @@
 #!/usr/bin/env node
-require("dotenv").config();
-const {
+import "dotenv/config";
+import {
   Client,
   GatewayIntentBits,
   Partials,
   REST,
   Routes,
   SlashCommandBuilder,
-} = require("discord.js");
-const https = require("https");
-const fs = require("fs");
-const path = require("path");
-const { execSync, spawn } = require("child_process");
+} from "discord.js";
+import https from "https";
+import fs from "fs";
+import path from "path";
+import { execSync, spawn } from "child_process";
 import stripAnsi from "strip-ansi";
+import * as SCHEDULER from "./scheduler.js";
+import * as SESSIONS from "./sessions.js";
+
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -23,14 +26,11 @@ const client = new Client({
 });
 
 const CONFIG_DIR = process.env.DUDE_CONFIG_DIR || process.cwd();
-require("dotenv").config({ path: path.join(CONFIG_DIR, ".env") });
 
 const TASKS_FILE = path.join(CONFIG_DIR, "tasks.md");
 const CONFIG_FILE = path.join(CONFIG_DIR, "config.json");
 const LOG_FILE = path.join(CONFIG_DIR, "agent.log");
 const REPO_BRIEF_FILE = path.join(process.cwd(), "REPO_BRIEF.md");
-const SCHEDULER = require("./scheduler");
-const SESSIONS = require("./sessions");
 
 let MODEL_CODE = "gemini-3-flash-preview";
 let MODEL_PROVIDER = "google-gemini-cli";
@@ -829,8 +829,6 @@ async function runCycle(interaction) {
   const task = tasks[0];
   if (interaction) interaction.followUp(`Working on task: ${task}`);
   log(`Working on task: ${task}`);
-
-  // ... rest of the function ...
 
   const apiKey = await getGeminiApiKey();
   if (!apiKey) {

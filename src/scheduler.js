@@ -1,5 +1,5 @@
-const fs = require("fs");
-const path = require("path");
+import fs from "fs";
+import path from "path";
 
 const CONFIG_DIR = process.env.DUDE_CONFIG_DIR || process.cwd();
 const SCHEDULE_FILE = path.join(CONFIG_DIR, "schedule.json");
@@ -14,7 +14,7 @@ function log(msg) {
 }
 
 // Parse time strings like "3h50m3s" or "24m26s" or "1h0m0s" into milliseconds
-function parseTimeString(timeStr) {
+export function parseTimeString(timeStr) {
   if (!timeStr) return null;
 
   const hoursMatch = timeStr.match(/(\d+)h/);
@@ -29,7 +29,7 @@ function parseTimeString(timeStr) {
 }
 
 // Parse quota error message and extract reset time
-function parseQuotaError(errorMessage) {
+export function parseQuotaError(errorMessage) {
   // Pattern: "Cloud Code Assist API error (429): You have exhausted your capacity on this model. Your quota will reset after 3h50m3s."
   // Also handles cases where no time is specified
   const timeMatch = errorMessage.match(/quota will reset after ([0-9]+h)?([0-9]+m)?([0-9]+s)?/i);
@@ -59,7 +59,7 @@ function parseQuotaError(errorMessage) {
 }
 
 // Check if an error message is a quota error
-function isQuotaError(output) {
+export function isQuotaError(output) {
   // Must have 429 status code and be an actual error message
   // This is more specific to avoid false positives from text about quota handling
   const has429 = output.includes("429");
@@ -83,7 +83,7 @@ function isQuotaError(output) {
 }
 
 // Load scheduled tasks from file
-function loadSchedule() {
+export function loadSchedule() {
   if (!fs.existsSync(SCHEDULE_FILE)) {
     return { paused: [], scheduled: [] };
   }
@@ -97,13 +97,13 @@ function loadSchedule() {
 }
 
 // Save schedule to file
-function saveSchedule(schedule) {
+export function saveSchedule(schedule) {
   fs.writeFileSync(SCHEDULE_FILE, JSON.stringify(schedule, null, 2));
   log(`Schedule saved: ${schedule.paused.length} paused tasks, ${schedule.scheduled.length} scheduled tasks`);
 }
 
 // Pause a task due to quota error
-function pauseTask(task, errorInfo) {
+export function pauseTask(task, errorInfo) {
   const schedule = loadSchedule();
   const now = Date.now();
   const resumeAt = now + errorInfo.resetAfterMs;
@@ -122,7 +122,7 @@ function pauseTask(task, errorInfo) {
 }
 
 // Schedule a task to run at a specific time
-function scheduleTask(task, runAt, reason = "manual") {
+export function scheduleTask(task, runAt, reason = "manual") {
   const schedule = loadSchedule();
 
   const scheduledTask = {
@@ -139,7 +139,7 @@ function scheduleTask(task, runAt, reason = "manual") {
 }
 
 // Get tasks that are ready to resume/run
-function getReadyTasks() {
+export function getReadyTasks() {
   const now = Date.now();
   const schedule = loadSchedule();
 
@@ -153,7 +153,7 @@ function getReadyTasks() {
 }
 
 // Remove completed tasks from schedule
-function removeCompletedTasks(taskIds) {
+export function removeCompletedTasks(taskIds) {
   const schedule = loadSchedule();
   schedule.paused = schedule.paused.filter((t) => !taskIds.includes(t.id));
   schedule.scheduled = schedule.scheduled.filter((t) => !taskIds.includes(t.id));
@@ -161,7 +161,7 @@ function removeCompletedTasks(taskIds) {
 }
 
 // Get list of paused tasks
-function listPausedTasks() {
+export function listPausedTasks() {
   const schedule = loadSchedule();
   const now = Date.now();
 
@@ -180,14 +180,14 @@ function listPausedTasks() {
 }
 
 // Get error information for a specific paused task
-function getPausedTaskError(taskId) {
+export function getPausedTaskError(taskId) {
   const schedule = loadSchedule();
   const task = schedule.paused.find((t) => t.id === taskId);
   return task?.errorInfo || null;
 }
 
 // Get list of scheduled tasks
-function listScheduledTasks() {
+export function listScheduledTasks() {
   const schedule = loadSchedule();
   const now = Date.now();
 
@@ -205,7 +205,7 @@ function listScheduledTasks() {
 }
 
 // Cancel a paused task
-function cancelPausedTask(taskId) {
+export function cancelPausedTask(taskId) {
   const schedule = loadSchedule();
   const index = schedule.paused.findIndex((t) => t.id === taskId);
   if (index !== -1) {
@@ -217,7 +217,7 @@ function cancelPausedTask(taskId) {
 }
 
 // Cancel a scheduled task
-function cancelScheduledTask(taskId) {
+export function cancelScheduledTask(taskId) {
   const schedule = loadSchedule();
   const index = schedule.scheduled.findIndex((t) => t.id === taskId);
   if (index !== -1) {
@@ -229,7 +229,7 @@ function cancelScheduledTask(taskId) {
 }
 
 // Suspend a session for later resumption with feedback
-function suspendSession(sessionId, reason = "awaiting feedback") {
+export function suspendSession(sessionId, reason = "awaiting feedback") {
   const schedule = loadSchedule();
 
   const suspendedSession = {
@@ -246,7 +246,7 @@ function suspendSession(sessionId, reason = "awaiting feedback") {
 }
 
 // Resume a suspended session
-function resumeSuspendedSession(sessionId) {
+export function resumeSuspendedSession(sessionId) {
   const schedule = loadSchedule();
   const index = (schedule.suspendedSessions || []).findIndex(
     (s) => s.sessionId === sessionId,
@@ -260,27 +260,7 @@ function resumeSuspendedSession(sessionId) {
 }
 
 // Check for suspended sessions that are ready
-function getReadySuspendedSessions() {
+export function getReadySuspendedSessions() {
   const schedule = loadSchedule();
   return schedule.suspendedSessions || [];
 }
-
-module.exports = {
-  parseTimeString,
-  parseQuotaError,
-  isQuotaError,
-  loadSchedule,
-  saveSchedule,
-  pauseTask,
-  scheduleTask,
-  getReadyTasks,
-  removeCompletedTasks,
-  listPausedTasks,
-  listScheduledTasks,
-  cancelPausedTask,
-  cancelScheduledTask,
-  getPausedTaskError,
-  suspendSession,
-  resumeSuspendedSession,
-  getReadySuspendedSessions,
-};

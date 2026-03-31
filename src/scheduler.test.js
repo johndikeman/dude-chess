@@ -1,22 +1,17 @@
-const fs = require("fs");
-const path = require("path");
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 // Temp files for testing
 const TEST_SCHEDULE = path.join(__dirname, "..", "test_schedule.json");
 const TEST_LOG = path.join(__dirname, "..", "test_agent.log");
 
-// Load the scheduler and override the file paths
-const SCHEDULER = require("./scheduler");
-
-// Mock file functions for testing
-const originalLoadSchedule = SCHEDULER.loadSchedule;
-const originalSaveSchedule = SCHEDULER.saveSchedule;
-const originalLog = SCHEDULER.log;
-
-function setupMocks() {
-  // Override file paths in scheduler
-  require.cache[require.resolve("./scheduler")].exports = createMockScheduler();
-}
+// Load the scheduler
+import * as SCHEDULER from "./scheduler.js";
 
 function createMockScheduler() {
   return {

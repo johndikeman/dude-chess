@@ -1,7 +1,12 @@
 // Test for index.js helper functions
 
-const fs = require("fs");
-const path = require("path");
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const TEST_TASKS = path.join(__dirname, "..", "test_tasks.md");
 

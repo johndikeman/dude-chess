@@ -163,10 +163,7 @@ const commands = [
         .setName("mode")
         .setDescription("Set auto-next mode")
         .setRequired(true)
-        .addChoices(
-          { name: "on", value: "on" },
-          { name: "off", value: "off" },
-        ),
+        .addChoices({ name: "on", value: "on" }, { name: "off", value: "off" }),
     ),
   new SlashCommandBuilder().setName("help").setDescription("Show help message"),
   new SlashCommandBuilder()
@@ -189,7 +186,9 @@ const commands = [
     .setDescription("List active sessions that can be resumed via reply"),
   new SlashCommandBuilder()
     .setName("linkpr")
-    .setDescription("Link the current session to a GitHub PR for resume via comment")
+    .setDescription(
+      "Link the current session to a GitHub PR for resume via comment",
+    )
     .addStringOption((option) =>
       option
         .setName("number")
@@ -199,7 +198,9 @@ const commands = [
     .addStringOption((option) =>
       option
         .setName("repo")
-        .setDescription("The repository (owner/name, defaults to GITHUB_REPO env var)"),
+        .setDescription(
+          "The repository (owner/name, defaults to GITHUB_REPO env var)",
+        ),
     ),
 ];
 
@@ -229,13 +230,16 @@ client.once("ready", async () => {
   }
 
   // Archive old sessions periodically (every hour)
-  setInterval(() => {
-    try {
-      SESSIONS.archiveCompletedSessions();
-    } catch (e) {
-      log(`Failed to archive sessions: ${e.message}`);
-    }
-  }, 60 * 60 * 1000);
+  setInterval(
+    () => {
+      try {
+        SESSIONS.archiveCompletedSessions();
+      } catch (e) {
+        log(`Failed to archive sessions: ${e.message}`);
+      }
+    },
+    60 * 60 * 1000,
+  );
 
   // Initial check for scheduled tasks on startup
   await checkAndRunScheduledTasks();
@@ -316,11 +320,11 @@ client.on("interactionCreate", async (interaction) => {
     } else {
       let list = tasks.map((t, i) => `${i + 1}. ${t}`).join("\n");
       let response = `**Pending Tasks:**\n${list}`;
-      
+
       if (response.length > 2000) {
         response = response.slice(0, 1990) + "... (truncated)";
       }
-      
+
       await interaction.reply(response);
     }
   }
@@ -517,7 +521,9 @@ client.on("interactionCreate", async (interaction) => {
   if (commandName === "sessions") {
     const activeSessions = SESSIONS.getActiveSessions();
     if (activeSessions.length === 0) {
-      await interaction.reply("No active sessions. Run a task with `/start` to create one.");
+      await interaction.reply(
+        "No active sessions. Run a task with `/start` to create one.",
+      );
     } else {
       const list = activeSessions
         .map(
@@ -635,7 +641,9 @@ async function checkGitHubPRComments() {
     );
 
     if (resumeComment) {
-      log(`Found resumption request on PR #${session.prNumber}: ${resumeComment.body}`);
+      log(
+        `Found resumption request on PR #${session.prNumber}: ${resumeComment.body}`,
+      );
 
       const feedbackTask = `Resume session ${session.id} with PR #${
         session.prNumber
@@ -663,9 +671,9 @@ async function fetchPRComments(repo, prNumber) {
       path: url,
       method: "GET",
       headers: {
-        "Authorization": `token ${token}`,
+        Authorization: `token ${token}`,
         "User-Agent": "dude-agent",
-        "Accept": "application/vnd.github.v3+json",
+        Accept: "application/vnd.github.v3+json",
       },
     };
 
@@ -772,13 +780,19 @@ function removeTaskFromPending(task) {
   if (!fs.existsSync(TASKS_FILE)) return false;
   let content = fs.readFileSync(TASKS_FILE, "utf8");
   const originalContent = content;
-  
+
   // Remove the specific task from pending tasks
-  content = content.replace(new RegExp(`- \\[ \\] ${task.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\n?`, "s"), "");
-  
+  content = content.replace(
+    new RegExp(
+      `- \\[ \\] ${task.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\n?`,
+      "s",
+    ),
+    "",
+  );
+
   // Clean up empty lines and restore the header if needed
   content = content.replace("# Pending Tasks\n\n", "# Pending Tasks\n");
-  
+
   if (content !== originalContent) {
     fs.writeFileSync(TASKS_FILE, content);
     log(`Removed task from pending: ${task}`);
@@ -804,7 +818,7 @@ async function runCycle(interaction) {
     if (interaction) interaction.followUp("A task is already being processed.");
     return;
   }
-  
+
   const tasks = getPendingTasks();
   if (tasks.length === 0) {
     if (interaction) interaction.followUp("No pending tasks.");
@@ -815,9 +829,8 @@ async function runCycle(interaction) {
   const task = tasks[0];
   if (interaction) interaction.followUp(`Working on task: ${task}`);
   log(`Working on task: ${task}`);
-  
-  // ... rest of the function ...
 
+  // ... rest of the function ...
 
   const apiKey = await getGeminiApiKey();
   if (!apiKey) {
@@ -897,7 +910,7 @@ Context:
     statusMessage = await interaction.followUp(
       `**Current Task:** ${task}\n**Status:** ${currentStatus}`,
     );
-    
+
     // Create a session for this task run
     try {
       const session = SESSIONS.createSession(task, {
@@ -940,7 +953,7 @@ Context:
       // Try to parse as JSON event (for --mode json)
       try {
         const event = JSON.parse(trimmed);
-        
+
         // Handle message events (start, update, end)
         if (event.message && event.message.content) {
           for (const content of event.message.content) {
@@ -962,10 +975,14 @@ Context:
         }
 
         // Handle tool execution events
-        const toolContent = 
-          (event.type === "tool_execution_update" && event.partialResult && event.partialResult.content) ||
-          (event.type === "tool_execution_end" && event.result && event.result.content);
-        
+        const toolContent =
+          (event.type === "tool_execution_update" &&
+            event.partialResult &&
+            event.partialResult.content) ||
+          (event.type === "tool_execution_end" &&
+            event.result &&
+            event.result.content);
+
         if (toolContent) {
           for (const content of toolContent) {
             if (content.type === "text" && content.text) {
@@ -1101,7 +1118,7 @@ Context:
       log("pi finished successfully.");
       currentStatus = "Completed successfully.";
       await updateDiscordStatus(true);
-      
+
       // Complete the session
       try {
         SESSIONS.completeSession(statusMessage.id);
@@ -1109,7 +1126,7 @@ Context:
       } catch (e) {
         log(`Failed to complete session: ${e.message}`);
       }
-      
+
       if (interaction) {
         const cleanedOutput = stripAnsi(piOutput.trim());
         const truncatedOutput =

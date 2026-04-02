@@ -45,6 +45,8 @@ function log(msg) {
 let config = {
   workDir: process.cwd(),
   autoNext: false,
+  statusUpdateInterval: 120000, // 2 minutes in ms
+  statusUpdateModel: "gemini-2.0-flash",
 };
 
 let isRunning = false;
@@ -52,7 +54,12 @@ let currentRunningTask = null;
 let pausedTaskInfo = null; // Store info about paused tasks for status display
 
 if (fs.existsSync(CONFIG_FILE)) {
-  config = JSON.parse(fs.readFileSync(CONFIG_FILE, "utf8"));
+  try {
+    const savedConfig = JSON.parse(fs.readFileSync(CONFIG_FILE, "utf8"));
+    config = { ...config, ...savedConfig };
+  } catch (e) {
+    log(`Error loading config: ${e.message}`);
+  }
 }
 
 function saveConfig() {
@@ -174,6 +181,24 @@ const commands = [
         .setDescription("Set auto-next mode")
         .setRequired(true)
         .addChoices({ name: "on", value: "on" }, { name: "off", value: "off" }),
+    ),
+  new SlashCommandBuilder()
+    .setName("statusinterval")
+    .setDescription("Set the status update interval in minutes")
+    .addIntegerOption((option) =>
+      option
+        .setName("minutes")
+        .setDescription("Interval in minutes (0 to disable)")
+        .setRequired(true),
+    ),
+  new SlashCommandBuilder()
+    .setName("statusmodel")
+    .setDescription("Set the model used for status updates")
+    .addStringOption((option) =>
+      option
+        .setName("model")
+        .setDescription("Model code (e.g., gemini-2.0-flash)")
+        .setRequired(true),
     ),
   new SlashCommandBuilder().setName("help").setDescription("Show help message"),
   new SlashCommandBuilder()
@@ -630,6 +655,22 @@ client.on("interactionCreate", async (interaction) => {
     }
   }
 
+  if (commandName === "statusinterval") {
+    const minutes = options.getInteger("minutes");
+    config.statusUpdateInterval = minutes * 60 * 1000;
+    saveConfig();
+    await interaction.reply(
+      `Status update interval set to **${minutes}** minutes${minutes === 0 ? " (disabled)" : ""}.`,
+    );
+  }
+
+  if (commandName === "statusmodel") {
+    const model = options.getString("model");
+    config.statusUpdateModel = model;
+    saveConfig();
+    await interaction.reply(`Status update model set to **${model}**.`);
+  }
+
   if (commandName === "help") {
     await interaction.reply(
       [
@@ -646,6 +687,8 @@ client.on("interactionCreate", async (interaction) => {
         `/resume <id> - Resume a paused task`,
         `/cancel <id> [type] - Cancel a task`,
         `/sessions - List active sessions`,
+        `/statusinterval <minutes> - Set status update interval`,
+        `/statusmodel <model> - Set status update model`,
         `/restart - Restart the agent`,
         `/help - Show this message`,
       ].join("\n"),
@@ -912,6 +955,8 @@ Context:
     MODEL_CODE,
     "--mode",
     "json",
+    "--session",
+    sessionFilePath,
     prompt,
   ];
 
@@ -926,7 +971,24 @@ Context:
     cwd: config.workDir,
   });
 
+  // Periodically run the status summarizer
+  let statusUpdateInterval = null;
+  if (config.statusUpdateInterval > 0) {
+    statusUpdateInterval = setInterval(async () => {
+      if (!isRunning || !currentSessionId) return;
+      try {
+        await runStatusSummarizer(sessionFilePath, (newStatus) => {
+          currentStatus = newStatus;
+          updateDiscordStatus(true);
+        }, task);
+      } catch (e) {
+        log(`Error running status summarizer: ${e.message}`);
+      }
+    }, config.statusUpdateInterval);
+  }
+
   piProcess.on("error", async (err) => {
+    if (statusUpdateInterval) clearInterval(statusUpdateInterval);
     isRunning = false;
     currentRunningTask = null;
     pausedTaskInfo = null;
@@ -965,6 +1027,11 @@ Context:
     log(`Created session ${currentSessionId} for task: ${task}`);
   } catch (e) {
     log(`Failed to create session: ${e.message}`);
+  }
+
+  const sessionFilePath = path.join(CONFIG_DIR, "sessions", `${currentSessionId || Date.now()}.jsonl`);
+  if (!fs.existsSync(path.dirname(sessionFilePath))) {
+    fs.mkdirSync(path.dirname(sessionFilePath), { recursive: true });
   }
 
   const updateDiscordStatus = async (force = false) => {
@@ -1142,6 +1209,7 @@ Context:
   });
 
   piProcess.on("close", async (code) => {
+    if (statusUpdateInterval) clearInterval(statusUpdateInterval);
     isRunning = false;
     currentRunningTask = null;
     // Check if this was a quota pause
@@ -1274,3 +1342,48 @@ function getPendingTasks() {
 }
 
 client.login(process.env.DISCORD_TOKEN);
+
+async function runStatusSummarizer(sessionFilePath, updateStatus, task) {
+  log(`Running status summarizer for session: ${sessionFilePath}`);
+
+  const summarizerPrompt = `Summarize the latest progress of the AI agent working on the following task:
+Task: ${task}
+
+Based on the session history, provide a concise one-sentence status update of what the agent is currently doing or has just completed. 
+The summary should be suitable for a status display (e.g., "[STATUS] Implementing feature X"). 
+Only output the status line starting with [STATUS]. Use lowercase writing and a semi-informal tone.`;
+
+  const piArgs = [
+    "--model",
+    config.statusUpdateModel || "gemini-2.0-flash",
+    "--session",
+    sessionFilePath,
+    "--no-session",
+    "--print",
+    summarizerPrompt,
+  ];
+
+  const summarizerProcess = spawn("pi", piArgs, {
+    stdio: ["inherit", "pipe", "pipe"],
+  });
+
+  let output = "";
+  summarizerProcess.stdout.on("data", (data) => {
+    output += data.toString();
+  });
+
+  summarizerProcess.on("close", (code) => {
+    if (code === 0) {
+      const lines = output.split("\n");
+      for (const line of lines) {
+        if (line.trim().includes("[STATUS]")) {
+          const status = line.trim().split("[STATUS]")[1].trim();
+          updateStatus(status);
+          break;
+        }
+      }
+    } else {
+      log(`Status summarizer failed with code ${code}`);
+    }
+  });
+}

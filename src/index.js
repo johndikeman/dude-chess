@@ -1078,10 +1078,7 @@ Context:
     "sessions",
     `${currentSessionId || Date.now()}.jsonl`,
   );
-    CONFIG_DIR,
-    "sessions",
-    `${currentSessionId || Date.now()}.jsonl`,
-  );
+
   if (!fs.existsSync(path.dirname(sessionFilePath))) {
     fs.mkdirSync(path.dirname(sessionFilePath), { recursive: true });
   }

@@ -144,8 +144,6 @@ test("returns null for invalid format", () => {
   const result = parseScheduleTime("invalid");
   assert(result === null);
 });
-// Note: empty string matches regex (all groups optional), returns current time + 0
-// This is acceptable behavior - it schedules immediately
 test("handles empty string", () => {
   const result = parseScheduleTime("");
   assert(typeof result === "number"); // returns a valid timestamp
@@ -304,7 +302,33 @@ test("status does not show next task when paused", () => {
   assert(!status.includes("Next Task:"));
 });
 
-console.log(`\n=== Results ===`);
+// Tests for status summarizer arguments
+console.log("\n=== runStatusSummarizer Arguments Tests ===");
+
+// Extract the runStatusSummarizer function content
+const indexSource = fs.readFileSync(join(__dirname, "index.js"), "utf8");
+const functionStart = indexSource.indexOf("async function runStatusSummarizer");
+const processSpawn = indexSource.indexOf('const summarizerProcess = spawn', functionStart);
+
+if (functionStart !== -1 && processSpawn !== -1) {
+  const functionContent = indexSource.substring(functionStart, processSpawn);
+  
+  test("runStatusSummarizer does not use conflicting --no-session flag", () => {
+    assert(!functionContent.includes("--no-session"), "piArgs should not contain --no-session flag");
+  });
+  
+  test("runStatusSummarizer includes --session flag", () => {
+    assert(functionContent.includes("--session"), "piArgs should contain --session flag");
+  });
+  
+  test("runStatusSummarizer includes --print flag", () => {
+    assert(functionContent.includes("--print"), "piArgs should contain --print flag");
+  });
+} else {
+  console.log("  ⚠ Could not locate runStatusSummarizer function for args testing");
+}
+
+console.log("\n=== Results ===");
 console.log(`  Passed: ${passed}`);
 console.log(`  Failed: ${failed}`);
 

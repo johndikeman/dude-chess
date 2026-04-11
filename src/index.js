@@ -333,6 +333,10 @@ async function checkAndRunScheduledTasks() {
     log(`Found ${ready.paused.length} paused tasks ready to resume`);
     for (const task of ready.paused) {
       log(`Resuming paused task: ${task.task}`);
+      // Store session mapping so runCycle can find and resume the session
+      if (task.sessionInfo) {
+        SCHEDULER.storeSessionMapping(task.task, task.sessionInfo);
+      }
       // Remove from paused and add back to tasks.md
       ready.schedule.paused = ready.schedule.paused.filter(
         (t) => t.id !== task.id,
@@ -510,7 +514,7 @@ client.on("interactionCreate", async (interaction) => {
 
   if (commandName === "start") {
     const response = await interaction.reply({
-      content: "Starting self-improvement cycle...",
+      content: "starting...",
       fetchReply: true,
     });
     runCycle(interaction, response);
@@ -594,6 +598,10 @@ client.on("interactionCreate", async (interaction) => {
       if (!removed) {
         await interaction.editReply(`No paused task found with ID: ${taskId}`);
         return;
+      }
+      // Store session mapping so runCycle can find and resume the session
+      if (removed.sessionInfo) {
+        SCHEDULER.storeSessionMapping(removed.task, removed.sessionInfo);
       }
       // Add the task back to tasks.md
       addTask(removed.task);
@@ -1030,18 +1038,39 @@ Context:
   let pausedTaskId = null;
   let quotaErrorHandled = false;
 
+  // Check if this task has a previous session to resume
+  const sessionMapping = SCHEDULER.getSessionMapping(task);
+  let existingSessionId = null;
+  if (sessionMapping && sessionMapping.sessionId) {
+    existingSessionId = sessionMapping.sessionId;
+    log(`Resuming task from existing session: ${existingSessionId}`);
+    // Clear the session mapping since we're using it now
+    SCHEDULER.clearSessionMapping(task);
+  }
+
   // Create a session for this task run
   try {
-    const session = SESSIONS.createSession(task, {
-      discordMessageId: statusMessage ? statusMessage.id : null,
-      discordChannelId: statusMessage ? statusMessage.channelId : null,
-      workspacePath: config.workDir,
-      prompt: prompt.substring(0, 2000), // Store prompt snippet
-    });
-    currentSessionId = session.id;
-    log(`Created session ${currentSessionId} for task: ${task}`);
+    if (existingSessionId) {
+      // Update existing session with new info for this run
+      SESSIONS.updateSession(existingSessionId, {
+        discordMessageId: statusMessage ? statusMessage.id : null,
+        discordChannelId: statusMessage ? statusMessage.channelId : null,
+        workspacePath: config.workDir,
+      });
+      currentSessionId = existingSessionId;
+      log(`Resumed session ${currentSessionId} for task: ${task}`);
+    } else {
+      const session = SESSIONS.createSession(task, {
+        discordMessageId: statusMessage ? statusMessage.id : null,
+        discordChannelId: statusMessage ? statusMessage.channelId : null,
+        workspacePath: config.workDir,
+        prompt: prompt.substring(0, 2000), // Store prompt snippet
+      });
+      currentSessionId = session.id;
+      log(`Created session ${currentSessionId} for task: ${task}`);
+    }
   } catch (e) {
-    log(`Failed to create session: ${e.message}`);
+    log(`Failed to manage session: ${e.message}`);
   }
 
   const sessionFilePath = path.join(
@@ -1049,6 +1078,7 @@ Context:
     "sessions",
     `${currentSessionId || Date.now()}.jsonl`,
   );
+
   if (!fs.existsSync(path.dirname(sessionFilePath))) {
     fs.mkdirSync(path.dirname(sessionFilePath), { recursive: true });
   }
@@ -1278,9 +1308,15 @@ Context:
             updateDiscordStatus(true);
 
             // Pause the task
-            const paused = SCHEDULER.pauseTask(task, errorInfo);
+            const paused = SCHEDULER.pauseTask(task, errorInfo, {
+              sessionId: currentSessionId,
+              sessionFile: sessionFilePath,
+            });
             pausedTaskId = paused.id;
-            pausedTaskInfo = { task, resumeAt: paused.resumeAt, errorInfo };
+            pausedTaskInfo = {
+              task, resumeAt: paused.resumeAt, errorInfo,
+              sessionId: currentSessionId,
+            };
 
             // Remove the task from pending tasks in tasks.md to prevent retry
             removeTaskFromPending(task);
@@ -1320,9 +1356,17 @@ Context:
           updateDiscordStatus(true);
 
           // Pause the task
-          const paused = SCHEDULER.pauseTask(task, errorInfo);
+          const paused = SCHEDULER.pauseTask(task, errorInfo, {
+            sessionId: currentSessionId,
+            sessionFile: sessionFilePath,
+          });
           pausedTaskId = paused.id;
-          pausedTaskInfo = { task, resumeAt: paused.resumeAt, errorInfo };
+          pausedTaskInfo = {
+            task,
+            resumeAt: paused.resumeAt,
+            errorInfo,
+            sessionId: currentSessionId,
+          };
 
           // Remove the task from pending tasks in tasks.md to prevent retry
           removeTaskFromPending(task);
@@ -1531,7 +1575,6 @@ Only output the status line starting with [STATUS]. Use lowercase writing and a 
     config.statusUpdateModel || "gemini-2.0-flash",
     "--session",
     sessionFilePath,
-    "--no-session",
     "--print",
     summarizerPrompt,
   ];
@@ -1541,8 +1584,13 @@ Only output the status line starting with [STATUS]. Use lowercase writing and a 
   });
 
   let output = "";
+  let error = "";
   summarizerProcess.stdout.on("data", (data) => {
     output += data.toString();
+  });
+
+  summarizerProcess.stderr.on("data", (data) => {
+    error += data.toString();
   });
 
   summarizerProcess.on("close", (code) => {
@@ -1560,6 +1608,9 @@ Only output the status line starting with [STATUS]. Use lowercase writing and a 
       }
     } else {
       log(`Status summarizer failed with code ${code}`);
+      if (error) {
+        log(`Error output: ${error.trim()}`);
+      }
     }
   });
 }

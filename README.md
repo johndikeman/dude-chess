@@ -1,6 +1,13 @@
-# Self-Improving AI Agent
+# Chess Critic Agent
 
-This agent uses `pi-mono-agent` (coding agent harness) to perform tasks on its own codebase or other projects.
+A fork of `dude-agent` specialized in maintaining a humorous Lichess Blunder Blog.
+
+## Features
+
+- Daily Lichess check for new games.
+- Automated blog post generation (1000+ words, humorous, informal, profanity-heavy).
+- Automatic screenshot capture for key positions.
+- Static site generation for GitHub Pages.
 
 ## Tech Stack
 - **pi-mono-agent**: The underlying coding agent.

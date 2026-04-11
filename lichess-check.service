@@ -1,0 +1,14 @@
+[Unit]
+Description=Lichess New Game Check
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/dude-workspace/chess-critic
+ExecStart=/usr/bin/node src/daily-check.js
+Environment=DUDE_CONFIG_DIR=/home/ubuntu/.config/dude
+
+[Install]
+WantedBy=multi-user.target

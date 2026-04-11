@@ -1030,7 +1030,7 @@ Create a feature branch to work on, REMEMBER TO ALWAYS FIRST pull in the most re
 when appropriate, write testcases to test new code.
 IMPORTANT: When you are working on a task, periodically report your status by printing a line starting with [STATUS] followed by your current activity. This status will be displayed in Discord.
 Then, commit the code to the feature branch and open a PR using gh cli.
-When the task is complete, mark it as done in the task file (${TASKS_FILE}) by changing [ ] to [x].
+When the task is complete, mark it as done in the task file (${TASKS_FILE}) by changing [ ] to [x]. PREFER USING YOUR EDIT TOOL FOR THIS intead of sed which is prone to failure.
 make sure your final message is a summary of the work that was done, or an explanation of the failure.
 
 if needed, previous sessions can be found in ~/.pi/agent/sessions/

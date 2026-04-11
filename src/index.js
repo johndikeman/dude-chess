@@ -1569,7 +1569,6 @@ Only output the status line starting with [STATUS]. Use lowercase writing and a 
     config.statusUpdateModel || "gemini-2.0-flash",
     "--session",
     sessionFilePath,
-    "--no-session",
     "--print",
     summarizerPrompt,
   ];
@@ -1579,8 +1578,13 @@ Only output the status line starting with [STATUS]. Use lowercase writing and a 
   });
 
   let output = "";
+  let error = "";
   summarizerProcess.stdout.on("data", (data) => {
     output += data.toString();
+  });
+
+  summarizerProcess.stderr.on("data", (data) => {
+    error += data.toString();
   });
 
   summarizerProcess.on("close", (code) => {
@@ -1595,6 +1599,9 @@ Only output the status line starting with [STATUS]. Use lowercase writing and a 
       }
     } else {
       log(`Status summarizer failed with code ${code}`);
+      if (error) {
+        log(`Error output: ${error.trim()}`);
+      }
     }
   });
 }

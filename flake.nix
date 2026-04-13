@@ -23,7 +23,7 @@
         in
         {
           packages.default = pkgs.buildNpmPackage.override { nodejs = pkgs.nodejs_24; } {
-            pname = "dude-agent";
+            pname = "dude-chess";
             version = "0.1.0";
             src = ./.;
             npmDepsHash = "sha256-3jMZB08mQcIk/wdgmcbmgjNhhfdlWqQuF4AJl3F8sE8=";
@@ -80,7 +80,7 @@
     eachSystem
     // {
       # Home Manager Module for the Systemd Service
-      homeManagerModules.dude-agent =
+      homeManagerModules.dude-chess =
         {
           config,
           lib,
@@ -88,42 +88,42 @@
           ...
         }:
         {
-          options.services.dude-agent = {
-            enable = lib.mkEnableOption "Dude Agent Service";
+          options.services.dude-chess = {
+            enable = lib.mkEnableOption "Dude Chess Agent Service";
             package = lib.mkOption {
               type = lib.types.package;
               default = self.packages.${pkgs.system}.default;
             };
             workingDirectory = lib.mkOption {
               type = lib.types.str;
-              default = "${config.home.homeDirectory}/dude-workspace";
+              default = "${config.home.homeDirectory}/dude-workspace/dude-chess";
             };
             configDirectory = lib.mkOption {
               type = lib.types.str;
-              default = "${config.home.homeDirectory}/.config/dude";
+              default = "${config.home.homeDirectory}/.config/dude-chess";
             };
           };
 
-          config = lib.mkIf config.services.dude-agent.enable {
-            systemd.user.services.dude-agent = {
+          config = lib.mkIf config.services.dude-chess.enable {
+            systemd.user.services.dude-chess = {
               Unit = {
-                Description = "Dude Self-Improving AI Agent";
+                Description = "Dude Chess AI Agent";
                 After = [ "network.target" ];
                 StartLimitBurst = "5";
                 StartLimitIntervalSec = "120s";
               };
               Service = {
                 Type = "simple";
-                WorkingDirectory = config.services.dude-agent.workingDirectory;
+                WorkingDirectory = config.services.dude-chess.workingDirectory;
                 ExecStartPre = [
-                  "${pkgs.coreutils}/bin/mkdir -p ${config.services.dude-agent.configDirectory}"
-                  "${pkgs._1password-cli}/bin/op run --env-file ${config.services.dude-agent.package}/.opvars -- /usr/bin/bash -c \"[ -z \"$GEMINI_JSON_TOKEN\" ] || echo \"$GEMINI_JSON_TOKEN\" > ~/.pi/agent/auth.json\""
+                  "${pkgs.coreutils}/bin/mkdir -p ${config.services.dude-chess.configDirectory}"
+                  "${pkgs._1password-cli}/bin/op run --env-file ${config.services.dude-chess.package}/.opvars -- /usr/bin/bash -c \"[ -z \"$GEMINI_JSON_TOKEN\" ] || echo \"$GEMINI_JSON_TOKEN\" > ~/.pi/agent/auth.json\""
                 ];
-                ExecStart = "${pkgs._1password-cli}/bin/op run --env-file ${config.services.dude-agent.package}/.opvars -- ${config.services.dude-agent.package}/bin/dude-agent";
+                ExecStart = "${pkgs._1password-cli}/bin/op run --env-file ${config.services.dude-chess.package}/.opvars -- ${config.services.dude-chess.package}/bin/dude-chess";
                 Restart = "always";
                 RestartSec = "5s";
                 Environment = [
-                  "DUDE_CONFIG_DIR=${config.services.dude-agent.configDirectory}"
+                  "DUDE_CONFIG_DIR=${config.services.dude-chess.configDirectory}"
                   "PI_SKILLS=${self.packages.${pkgs.system}.skills}/skills"
                   "WEB_BROWSE_BROWSER_BIN=${pkgs.chromium}/bin/chromium"
                   "PATH=${
@@ -136,11 +136,11 @@
                       pkgs.chromium
                       pkgs.coreutils
                     ]
-                  }:${config.services.dude-agent.package}/lib/node_modules/dude-agent/node_modules/.bin:/usr/bin:/bin"
+                  }:${config.services.dude-chess.package}/lib/node_modules/dude-chess/node_modules/.bin:/usr/bin:/bin"
                 ];
                 EnvironmentFile = [
-                  "-${config.services.dude-agent.workingDirectory}/.env"
-                  "-${config.services.dude-agent.configDirectory}/.env"
+                  "-${config.services.dude-chess.workingDirectory}/.env"
+                  "-${config.services.dude-chess.configDirectory}/.env"
                 ];
               };
               Install.WantedBy = [ "default.target" ];

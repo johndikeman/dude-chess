@@ -1,56 +1,42 @@
-# Chess Critic Agent
+# Dude Chess Agent
 
-A fork of `dude-agent` specialized in maintaining a humorous Lichess Blunder Blog.
+A specialized version of `dude-agent` focused on maintaining a humorous Lichess Blunder Blog.
 
 ## Features
 
-- Daily Lichess check for new games.
+- Daily Lichess check for new games via systemd timer.
 - Automated blog post generation (1000+ words, humorous, informal, profanity-heavy).
 - Automatic screenshot capture for key positions.
-- Static site generation for GitHub Pages.
+- Integrated with the `dude-agent` core for self-improvement.
 
 ## Tech Stack
-- **pi-mono-agent**: The underlying coding agent.
-- **Nix Flakes**: For dependency management.
-- **Discord.js**: For communication with the user.
-- **Google Cloud SDK**: For Gemini API authentication.
-- **GitHub CLI (gh)**: For creating Pull Requests.
-
-## Prerequisites
-1. A Discord Bot Token.
-2. Google AI subscription and `gcloud` authenticated.
-3. GitHub personal access token configured for `gh`.
+- **dude-agent**: The underlying self-improving agent framework.
+- **Nix Flakes**: For dependency management and service configuration.
+- **Discord.js**: For communication and task management.
+- **Lichess API**: For fetching recent games.
+- **GitHub CLI (gh)**: For PR management.
 
 ## Setup
-1. Clone this repository on your VPS.
+1. Clone this repository to `/home/ubuntu/dude-workspace/dude-chess`.
 2. Ensure Nix is installed with Flakes enabled.
-3. Create a `.env` file based on `.env.example` and add your `DISCORD_TOKEN`.
-4. Run `nix develop` to enter the shell with all dependencies.
-5. Authenticate `gcloud`:
-   ```bash
-   gcloud auth login
-   gcloud config set project <YOUR_PROJECT_ID>
-   ```
-6. Authenticate `gh`:
-   ```bash
-   gh auth login
-   ```
-7. Start the agent:
-   ```bash
-   npm start
-   ```
+3. Configure your `.env` file in `~/.config/dude-chess/.env` with:
+   - `DISCORD_TOKEN`
+   - `GEMINI_JSON_TOKEN`
+   - `GITHUB_REPO=johndikeman/dude-chess`
+4. Use the provided Nix home-manager module to enable the `dude-chess` service.
 
-## Discord Commands
-- `!task <description>`: Add a new task to the queue.
-- `!tasks`: List all pending tasks.
-- `!status`: Show current working directory and queue status.
-- `!workdir <path>`: Change the directory where the agent works.
-- `!start`: Start working on the next task in the queue.
-- `!restart`: Stop the agent (use with a process manager like `systemd` or `pm2` to auto-restart).
+## Configuration
+The agent uses a separate config directory from the main `dude` agent:
+`DUDE_CONFIG_DIR=/home/ubuntu/.config/dude-chess`
 
-## Self-Improvement
-The agent can modify its own code in `src/` and `flake.nix`. When it completes a task, it will automatically:
-1. Create a new git branch.
-2. Commit the changes.
-3. Push to GitHub.
-4. Open a Pull Request.
+This directory contains:
+- `tasks.md`: The task queue for the chess agent.
+- `config.json`: Agent configuration (model, auto-next, etc.).
+- `agent.log`: Activity log.
+- `sessions/`: History of agent sessions.
+- `lichess-tracking.json`: Keeps track of the last analyzed game.
+
+## Services
+- `dude-chess.service`: The main agent process.
+- `lichess-check.service` & `lichess-check.timer`: Periodically checks for new games and adds tasks to `tasks.md`.
+

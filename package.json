@@ -1,11 +1,11 @@
 {
-  "name": "dude-agent",
+  "name": "dude-chess",
   "version": "0.1.0",
-  "description": "A self-improving AI agent",
+  "description": "A self-improving AI agent for chess analysis",
   "type": "module",
   "main": "src/index.js",
   "bin": {
-    "dude-agent": "src/index.js"
+    "dude-chess": "src/index.js"
   },
   "scripts": {
     "start": "node src/index.js",

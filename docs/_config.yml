@@ -1,0 +1,10 @@
+title: Chess Critic Blog
+description: Humiliating my chess skills, one game at a time.
+baseurl: "/dude-chess" # for GitHub Pages subfolder
+url: "https://johndikeman.github.io"
+# theme: minima # Optional, but common
+markdown: kramdown
+permalink: /:year/:month/:day/:title.html
+# plugins:
+#   - jekyll-feed
+#   - jekyll-seo-tag

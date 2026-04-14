@@ -106,6 +106,10 @@
 
           options.services.dude-chess-checker = {
             enable = lib.mkEnableOption "Dude Chess Checker Service (Daily Lichess Check)";
+            lichessUsername = lib.mkOption {
+              type = lib.types.str;
+              description = "Lichess username to check for new games.";
+            };
             interval = lib.mkOption {
               type = lib.types.str;
               default = "daily";
@@ -174,6 +178,7 @@
                 ExecStart = "${pkgs._1password-cli}/bin/op run --env-file ${self.packages.${pkgs.system}.default}/.opvars -- ${pkgs.nodejs_24}/bin/node src/daily-check.js";
                 Environment = [
                   "DUDE_CONFIG_DIR=${config.services.dude-chess-checker.configDirectory}"
+                  "LICHESS_USERNAME=${config.services.dude-chess-checker.lichessUsername}"
                   "PATH=${
                     lib.makeBinPath [
                       pkgs.nodejs_24

@@ -2,8 +2,8 @@ import fs from 'fs';
 import path from 'path';
 import { fetchRecentGames, getImportantMoves, getBoardImageUrl } from './lichess.js';
 
-const BLOG_DIR = './blog';
-const ASSETS_DIR = path.join(BLOG_DIR, 'assets/img');
+const BLOG_DIR = './docs/_posts';
+const ASSETS_DIR = './docs/assets/img';
 
 export function initBlog() {
   if (!fs.existsSync(BLOG_DIR)) {

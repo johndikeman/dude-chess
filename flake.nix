@@ -104,8 +104,25 @@
             };
           };
 
-          config = lib.mkIf config.services.dude-chess.enable {
-            systemd.user.services.dude-chess = {
+          options.services.dude-chess-checker = {
+            enable = lib.mkEnableOption "Dude Chess Checker Service (Daily Lichess Check)";
+            interval = lib.mkOption {
+              type = lib.types.str;
+              default = "daily";
+              description = "Systemd calendar expression for how often to check for new games.";
+            };
+            workingDirectory = lib.mkOption {
+              type = lib.types.str;
+              default = "${config.home.homeDirectory}/dude-workspace/dude-chess";
+            };
+            configDirectory = lib.mkOption {
+              type = lib.types.str;
+              default = "${config.home.homeDirectory}/.config/dude-chess";
+            };
+          };
+
+          config = {
+            systemd.user.services.dude-chess = lib.mkIf config.services.dude-chess.enable {
               Unit = {
                 Description = "Dude Chess AI Agent";
                 After = [ "network.target" ];
@@ -144,6 +161,42 @@
                 ];
               };
               Install.WantedBy = [ "default.target" ];
+            };
+
+            systemd.user.services.dude-chess-checker = lib.mkIf config.services.dude-chess-checker.enable {
+              Unit = {
+                Description = "Dude Chess Checker - New Lichess Games";
+                After = [ "network.target" ];
+              };
+              Service = {
+                Type = "oneshot";
+                WorkingDirectory = config.services.dude-chess-checker.workingDirectory;
+                ExecStart = "${pkgs._1password-cli}/bin/op run --env-file ${self.packages.${pkgs.system}.default}/.opvars -- ${pkgs.nodejs_24}/bin/node src/daily-check.js";
+                Environment = [
+                  "DUDE_CONFIG_DIR=${config.services.dude-chess-checker.configDirectory}"
+                  "PATH=${
+                    lib.makeBinPath [
+                      pkgs.nodejs_24
+                      pkgs._1password-cli
+                    ]
+                  }:/usr/bin:/bin"
+                ];
+                EnvironmentFile = [
+                  "-${config.services.dude-chess-checker.workingDirectory}/.env"
+                  "-${config.services.dude-chess-checker.configDirectory}/.env"
+                ];
+              };
+            };
+
+            systemd.user.timers.dude-chess-checker = lib.mkIf config.services.dude-chess-checker.enable {
+              Unit = {
+                Description = "Run Dude Chess Checker Periodically";
+              };
+              Timer = {
+                OnCalendar = config.services.dude-chess-checker.interval;
+                Persistent = true;
+              };
+              Install.WantedBy = [ "timers.target" ];
             };
           };
         };

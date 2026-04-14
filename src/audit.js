@@ -38,7 +38,7 @@ function addTask(task) {
 
 function findLogFile(session) {
   const sessionsDir = path.join(process.env.HOME, ".pi/agent/sessions");
-  const workspacePath = session.workspacePath || "/home/ubuntu/dude-workspace";
+  const workspacePath = session.workspacePath || "/home/ubuntu/dude-workspace/dude-chess";
   const safePath = workspacePath.replace(/\//g, "-");
   
   // Try different variations of safe path naming

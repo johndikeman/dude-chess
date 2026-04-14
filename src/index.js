@@ -1159,7 +1159,7 @@ ${repoBrief ? `### Repository Brief:\n${repoBrief}\n` : ""}
 Current Task: ${task}
 Current date: ${new Date().toLocaleString("en-US")}
 Your goal is to implement this task. your workspace is in (${config.workDir}).
-if the task is to improve yourself, this will be in the dude/ directory. if the directory does not exist, you can use the gh cli to clone johndikeman/dude.
+if the task is to improve yourself, this will be in the dude-chess/ directory. if the directory does not exist, you can use the gh cli to clone johndikeman/dude-chess.
 you can clone other repositories if needed.
 Create a feature branch to work on, REMEMBER TO ALWAYS FIRST pull in the most recent 'main' branch and use it as the base of your feature branch in case another user has made changes, to avoid a merge conflict.
 when appropriate, write testcases to test new code.

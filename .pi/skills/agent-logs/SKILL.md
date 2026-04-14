@@ -1,36 +1,36 @@
 ---
 name: agent-logs
-description: Access and search agent logs from agent.log or via journalctl for the dude-agent service.
+description: Access and search agent logs from agent.log or via journalctl for the dude-chess service.
 ---
 
 # Agent Logs
 
-This skill provides access to the logs for the `dude-agent` service and instructions for restarting the service
+This skill provides access to the logs for the `dude-chess` service and instructions for restarting the service
 
 ## Accessing Logs
 
 ### Using journalctl
 
-The agent runs as a user service named `dude-agent`. You can access the logs using `journalctl`:
+The agent runs as a user service named `dude-chess`. You can access the logs using `journalctl`:
 
 ```bash
-journalctl --user -u dude-agent
+journalctl --user -u dude-chess
 ```
 
 To see the last 100 lines:
 ```bash
-journalctl --user -u dude-agent -n 100
+journalctl --user -u dude-chess -n 100
 ```
 
 To follow the logs:
 ```bash
-journalctl --user -u dude-agent -f
+journalctl --user -u dude-chess -f
 ```
 
 to restart the agent:
 
 ```
-sudo systemctl --user restart dude-agent
+sudo systemctl --user restart dude-chess
 ```
 
 ### Using agent.log

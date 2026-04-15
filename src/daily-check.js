@@ -26,7 +26,7 @@ function addTask(task) {
     fs.writeFileSync(TASKS_FILE, content);
 }
 
-export async function checkNewGames(username) {
+function checkNewGames(username) {
     const tracking = loadTracking();
     const games = await fetchRecentGames(username, tracking.lastCheckedGameId);
     
@@ -55,15 +55,24 @@ Put the resulting markdown file and assets in the 'blog' directory of the curren
 
 // If run directly
 if (import.meta.url === `file://${process.argv[1]}`) {
-    const configPath = path.join(CONFIG_DIR, 'config.json');
-    if (fs.existsSync(configPath)) {
-        const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-        if (config.lichessUsername) {
-            checkNewGames(config.lichessUsername).catch(console.error);
-        } else {
-            console.error("No lichessUsername found in config.json");
-        }
+    const username = process.env.LICHESS_USERNAME;
+    if (username) {
+        checkNewGames(username).catch(console.error);
     } else {
-        console.error("config.json not found");
+        const configPath = path.join(CONFIG_DIR, "config.json");
+        if (fs.existsSync(configPath)) {
+            const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+            if (config.lichessUsername) {
+                checkNewGames(config.lichessUsername).catch(console.error);
+            } else {
+                console.error(
+                    "No LICHESS_USERNAME env var and no lichessUsername found in config.json",
+                );
+            }
+        } else {
+            console.error(
+                "No LICHESS_USERNAME env var and config.json not found",
+            );
+        }
     }
 }

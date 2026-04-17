@@ -26,7 +26,7 @@ function addTask(task) {
     fs.writeFileSync(TASKS_FILE, content);
 }
 
-function checkNewGames(username) {
+async function checkNewGames(username) {
     const tracking = loadTracking();
     const games = await fetchRecentGames(username, tracking.lastCheckedGameId);
     

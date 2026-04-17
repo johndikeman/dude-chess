@@ -3,7 +3,10 @@ import path from "path";
 import { spawn } from "child_process";
 import * as SESSIONS from "./sessions.js";
 
-const CONFIG_DIR = process.env.DUDE_CONFIG_DIR || process.cwd();
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const CONFIG_DIR = process.env.NODE_ENV === 'test' ? path.join(__dirname, "..", "test_config") : (process.env.DUDE_CONFIG_DIR || process.cwd());
 const LOG_FILE = path.join(CONFIG_DIR, "agent.log");
 const TASKS_FILE = path.join(CONFIG_DIR, "tasks.md");
 

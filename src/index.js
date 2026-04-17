@@ -25,7 +25,10 @@ const client = new Client({
   partials: [Partials.Message],
 });
 
-const CONFIG_DIR = process.env.DUDE_CONFIG_DIR || process.cwd();
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const CONFIG_DIR = process.env.NODE_ENV === 'test' ? path.join(__dirname, "..", "test_config") : (process.env.DUDE_CONFIG_DIR || process.cwd());
 
 const TASKS_FILE = path.join(CONFIG_DIR, "tasks.md");
 const CONFIG_FILE = path.join(CONFIG_DIR, "config.json");

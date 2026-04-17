@@ -26,7 +26,7 @@
             pname = "dude-chess";
             version = "0.1.0";
             src = ./.;
-            npmDepsHash = "sha256-3jMZB08mQcIk/wdgmcbmgjNhhfdlWqQuF4AJl3F8sE8=";
+            npmDepsHash = "sha256-d/mt3WbJ5jzHpqXl1nzJMYSk91UbACGGZS9wnELwNgw=";
             dontNpmBuild = true;
             postInstall = ''
               cp .opvars $out/.opvars

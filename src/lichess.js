@@ -71,5 +71,5 @@ export function getImportantMoves(game) {
 }
 
 export function getBoardImageUrl(fen, color = 'white') {
-  return `https://lichess1.org/export/fen.png?fen=${encodeURIComponent(fen)}&color=${color}&theme=brown&piece=cburnett`;
+  return `https://lichess.org/export/fen.png?fen=${encodeURIComponent(fen)}&color=${color}&theme=brown&piece=cburnett`;
 }

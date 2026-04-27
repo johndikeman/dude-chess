@@ -1809,12 +1809,13 @@ ${prompt.substring(prompt.indexOf("You are a self-improving agent"))}`;
       }
 
       // If autoNext is enabled, start the next task (quota-paused task was already removed from pending)
+      // Special case: if we hit a quota error, we don't want to immediately start the next task
+      // because it will likely hit the same quota error.
       if (config.autoNext) {
-        log("autoNext is enabled, starting next task after quota pause...");
-        // When the next task starts, it will set currentRunningTask and clear pausedTaskInfo
-        setTimeout(() => {
-          runCycle();
-        }, 5000);
+        log("autoNext is enabled, but task was paused due to quota. NOT starting next task automatically.");
+        if (statusMessage) {
+          statusMessage.reply("Auto-next is suspended until quota resets or a new task is manually started.");
+        }
       }
     } else {
       pausedTaskInfo = null; // Clear paused task info for failures
@@ -1890,8 +1891,15 @@ Only output the status line starting with [STATUS]. Use lowercase writing and a 
     summarizerPrompt,
   ];
 
+  const apiKey = await getGeminiApiKey();
+  const env = { ...process.env };
+  if (apiKey) {
+    env.GEMINI_JSON_TOKEN = apiKey;
+  }
+
   const summarizerProcess = spawn("pi", piArgs, {
     stdio: ["inherit", "pipe", "pipe"],
+    env
   });
 
   let output = "";

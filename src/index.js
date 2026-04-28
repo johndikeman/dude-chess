@@ -330,13 +330,24 @@ client.once("ready", async () => {
   // Initialize model settings from config
   initializeModelSettings();
 
-  // Mark stale active sessions as failed/interrupted
+  // Mark stale active sessions as failed/interrupted and store mappings for auto-resume
   const sessions = SESSIONS.loadSessions();
   if (sessions.active.length > 0) {
     log(
-      `Marking ${sessions.active.length} stale active sessions as interrupted.`,
+      `Marking ${sessions.active.length} stale active sessions as interrupted and storing mappings for auto-resume.`,
     );
     for (const session of sessions.active) {
+      // Store mapping so if we pick up this task again, we can resume the session
+      const sessionFilePath = path.join(
+        CONFIG_DIR,
+        "sessions",
+        `${session.id}.jsonl`,
+      );
+      SCHEDULER.storeSessionMapping(session.task, {
+        sessionId: session.id,
+        sessionFile: sessionFilePath,
+      });
+
       session.status = "interrupted";
       session.completedAt = Date.now();
       sessions.completed.push(session);
@@ -1217,7 +1228,7 @@ Context:
       if (activeSessions.length > 0) {
         const prevSession = activeSessions[0];
         previousSessionId = prevSession.id;
-        log(`Continuing from previous session: ${previousSessionId}`);
+        log(`Continuing from previous active session: ${previousSessionId}`);
 
         // Build the prompt to resume with context from previous run
         const continuePrompt = `RESUME MODE: This is a continuation of a previous session that was interrupted due to a quota error. 
@@ -1236,55 +1247,36 @@ ${prompt.substring(prompt.indexOf("You are a self-improving agent"))}`;
           previousModelError: previousError,
           fallbackModelUsed: MODEL_CODE,
         };
-
-        // Update the existing session
-        SESSIONS.updateSession(previousSessionId, {
-          lastModel: MODEL_CODE,
-          originalFailureReason: previousError,
-          lastRetryAt: Date.now(),
-        });
       } else {
-        // No previous session found, create new session but track that we should have continued
+        // No active session found, check if we have a mapping for the original task
+        const mapping = SCHEDULER.getSessionMapping(originalTask);
+        if (mapping && mapping.sessionId) {
+          previousSessionId = mapping.sessionId;
+          log(`Continuing from mapped session for original task: ${previousSessionId}`);
+        }
+
         sessionOptions.fallbackRetryContext = {
           originalTask,
           previousModelError: previousError,
           fallbackModelUsed: MODEL_CODE,
-          noPreviousSession: true,
+          noPreviousSession: !previousSessionId,
         };
       }
     }
 
-    // existingSessionId will be here if we already had a session for this prompt in the sessions file
-    if (existingSessionId) {
-      // Update existing session with new info for this run
-      SESSIONS.updateSession(existingSessionId, {
-        discordMessageId: statusMessage ? statusMessage.id : null,
-        discordChannelId: statusMessage ? statusMessage.channelId : null,
-        workspacePath: config.workDir,
-      });
-      currentSessionId = existingSessionId;
+    // Decide which session to use
+    const sessionIdToUse = previousSessionId || existingSessionId;
+
+    if (sessionIdToUse) {
+      // Update/resume existing session
+      SESSIONS.resumeSession(sessionIdToUse, sessionOptions);
+      currentSessionId = sessionIdToUse;
       log(`Resumed session ${currentSessionId} for task: ${task}`);
     } else {
-      const session = SESSIONS.createSession(task, {
-        discordMessageId: statusMessage ? statusMessage.id : null,
-        discordChannelId: statusMessage ? statusMessage.channelId : null,
-        workspacePath: config.workDir,
-        prompt: prompt.substring(0, 2000), // Store prompt snippet
-      });
-      currentSessionId = session.id;
-      log(`Created session ${currentSessionId} for task: ${task}`);
-    }
-
-    // Only create new session if we're not continuing from a previous one
-    if (!isFallbackRetry || !previousSessionId) {
+      // Create new session
       const session = SESSIONS.createSession(task, sessionOptions);
       currentSessionId = session.id;
-      log(
-        `Created session ${currentSessionId} for task: ${task}${isFallbackRetry ? " (fallback retry, no previous session)" : ""}`,
-      );
-    } else {
-      currentSessionId = previousSessionId;
-      log(`Continuing session ${currentSessionId} for fallback retry: ${task}`);
+      log(`Created session ${currentSessionId} for task: ${task}`);
     }
   } catch (e) {
     log(`Failed to manage session: ${e.message}`);
@@ -1295,6 +1287,14 @@ ${prompt.substring(prompt.indexOf("You are a self-improving agent"))}`;
     "sessions",
     `${currentSessionId || Date.now()}.jsonl`,
   );
+
+  // Store mapping for auto-resume if interrupted
+  if (currentSessionId) {
+    SCHEDULER.storeSessionMapping(task, {
+      sessionId: currentSessionId,
+      sessionFile: sessionFilePath,
+    });
+  }
 
   if (!fs.existsSync(path.dirname(sessionFilePath))) {
     fs.mkdirSync(path.dirname(sessionFilePath), { recursive: true });
@@ -1711,6 +1711,8 @@ ${prompt.substring(prompt.indexOf("You are a self-improving agent"))}`;
         if (currentSessionId) {
           SESSIONS.completeSession(currentSessionId);
           SESSIONS.archiveCompletedSessions();
+          // Clear mapping as task is done
+          SCHEDULER.clearSessionMapping(task);
         }
       } catch (e) {
         log(`Failed to complete session: ${e.message}`);

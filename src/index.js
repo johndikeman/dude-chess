@@ -1567,6 +1567,12 @@ ${prompt.substring(prompt.indexOf("You are a self-improving AI agent"))}`;
             // Schedule task as a scheduled task for after quota reset
             SCHEDULER.scheduleTask(task, paused.resumeAt, "quota_resume");
             updateDiscordStatus(true);
+
+            // Kill current pi process after a short delay to allow status update to finish
+            setTimeout(() => {
+              log(`Killing pi process due to task pause: ${task}`);
+              piProcess.kill("SIGINT");
+            }, 1000);
           }
         }
       } catch (e) {

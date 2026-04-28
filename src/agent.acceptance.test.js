@@ -11,9 +11,10 @@ import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const TEST_DIR = join(__dirname, "..", "test_acceptance");
+const TEST_DIR = join(__dirname, "..", "test_acceptance_isolated");
 
-if (!fs.existsSync(TEST_DIR)) fs.mkdirSync(TEST_DIR, { recursive: true });
+if (fs.existsSync(TEST_DIR)) fs.rmSync(TEST_DIR, { recursive: true, force: true });
+fs.mkdirSync(TEST_DIR, { recursive: true });
 process.env.DUDE_CONFIG_DIR = TEST_DIR;
 
 import * as SCHEDULER from "./scheduler.js";
@@ -230,8 +231,6 @@ await test("SCENARIO 12: Discord fallback notifications", async () => {
 
 console.log("\n" + "=".repeat(70) + `\nRESULTS: ${passed} passed, ${failed} failed\n` + "=".repeat(70));
 
-["config.json", "tasks.md", "schedule.json", "sessions.json", "session-map.json"].forEach(f => {
-  try { if (fs.existsSync(join(TEST_DIR, f))) fs.unlinkSync(join(TEST_DIR, f)); } catch (e) {}
-});
+try { if (fs.existsSync(TEST_DIR)) fs.rmSync(TEST_DIR, { recursive: true, force: true }); } catch (e) {}
 
 process.exit(failed > 0 ? 1 : 0);

@@ -1126,6 +1126,26 @@ async function runCycle(interaction, initialStatusMessage = null) {
   currentRunningTask = task;
   log(`Working on task: ${task}`);
 
+  // Use local variables for model configuration to avoid affecting other tasks
+  let currentModelCode = MODEL_CODE;
+  let currentModelProvider = MODEL_PROVIDER;
+
+  // Check if this is a heavy task
+  if (task.startsWith("[HEAVY]")) {
+    log(
+      `Heavy task detected. Using fallback model: ${FALLBACK_MODEL_CODE || "gemini-3-pro-preview"}`,
+    );
+    if (FALLBACK_MODEL_CODE) {
+      currentModelCode = FALLBACK_MODEL_CODE;
+      currentModelProvider = FALLBACK_MODEL_PROVIDER || "google-gemini-cli";
+    } else {
+      // Default to a known pro model if no fallback configured
+      currentModelCode = "gemini-3-pro-preview";
+      currentModelProvider = "google-gemini-cli";
+    }
+    task = task.replace("[HEAVY]", "").trim();
+  }
+
   // Check if this is a fallback retry task
   let isFallbackRetry = false;
   let originalTask = task;
@@ -1146,9 +1166,11 @@ async function runCycle(interaction, initialStatusMessage = null) {
 
   // Switch to fallback model if this is a retry task
   if (isFallbackRetry && USE_FALLBACK_ON_QUOTA_ERROR && FALLBACK_MODEL_CODE) {
-    MODEL_CODE = FALLBACK_MODEL_CODE;
-    MODEL_PROVIDER = FALLBACK_MODEL_PROVIDER || "google-gemini-cli";
-    log(`Switched to fallback model: ${MODEL_CODE} (${MODEL_PROVIDER})`);
+    currentModelCode = FALLBACK_MODEL_CODE;
+    currentModelProvider = FALLBACK_MODEL_PROVIDER || "google-gemini-cli";
+    log(
+      `Switched to fallback model: ${currentModelCode} (${currentModelProvider})`,
+    );
   }
 
   const apiKey = await getGeminiApiKey();
@@ -1237,28 +1259,30 @@ Previous error was: ${previousError}
 
 Continuing the task: ${task}
 
-${prompt.substring(prompt.indexOf("You are a self-improving agent"))}`;
+${prompt.substring(prompt.indexOf("You are a self-improving AI agent"))}`;
         sessionOptions.prompt = continuePrompt.substring(0, 2000);
 
-        sessionOptions.lastModel = MODEL_CODE;
+        sessionOptions.lastModel = currentModelCode;
         sessionOptions.lastModelError = previousError;
         sessionOptions.fallbackRetryContext = {
           originalTask,
           previousModelError: previousError,
-          fallbackModelUsed: MODEL_CODE,
+          fallbackModelUsed: currentModelCode,
         };
       } else {
         // No active session found, check if we have a mapping for the original task
         const mapping = SCHEDULER.getSessionMapping(originalTask);
         if (mapping && mapping.sessionId) {
           previousSessionId = mapping.sessionId;
-          log(`Continuing from mapped session for original task: ${previousSessionId}`);
+          log(
+            `Continuing from mapped session for original task: ${previousSessionId}`,
+          );
         }
 
         sessionOptions.fallbackRetryContext = {
           originalTask,
           previousModelError: previousError,
-          fallbackModelUsed: MODEL_CODE,
+          fallbackModelUsed: currentModelCode,
           noPreviousSession: !previousSessionId,
         };
       }
@@ -1302,9 +1326,9 @@ ${prompt.substring(prompt.indexOf("You are a self-improving agent"))}`;
 
   const piArgs = [
     "--provider",
-    MODEL_PROVIDER,
+    currentModelProvider,
     "--model",
-    MODEL_CODE,
+    currentModelCode,
     "--mode",
     "json",
     "--session",
@@ -1493,7 +1517,7 @@ ${prompt.substring(prompt.indexOf("You are a self-improving agent"))}`;
             // The session file will persist the model info for continuation
             try {
               SESSIONS.updateSession(currentSessionId, {
-                lastModel: MODEL_CODE,
+                lastModel: currentModelCode,
                 fallbackModelUsed: FALLBACK_MODEL_CODE,
                 lastModelError: quotaErrorInfo.errorMessage,
               });
@@ -1885,6 +1909,8 @@ The summary should be suitable for a status display (e.g., "[STATUS] Implementin
 Only output the status line starting with [STATUS]. Use lowercase writing and a semi-informal tone.`;
 
   const piArgs = [
+    "--provider",
+    MODEL_PROVIDER,
     "--model",
     config.statusUpdateModel || "gemini-2.0-flash",
     "--session",

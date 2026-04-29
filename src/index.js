@@ -198,11 +198,11 @@ const commands = [
     .setDescription("List scheduled tasks"),
   new SlashCommandBuilder()
     .setName("resume")
-    .setDescription("Resume a paused task immediately")
+    .setDescription("Resume a paused task or session immediately")
     .addStringOption((option) =>
       option
         .setName("id")
-        .setDescription("The ID of the paused task")
+        .setDescription("The ID of the paused task or session")
         .setRequired(true),
     ),
   new SlashCommandBuilder()
@@ -690,26 +690,54 @@ client.on("interactionCreate", async (interaction) => {
   }
 
   if (commandName === "resume") {
-    const taskId = options.getString("id");
+    const id = options.getString("id");
     await interaction.deferReply();
     try {
-      const removed = SCHEDULER.cancelPausedTask(taskId);
-      if (!removed) {
-        await interaction.editReply(`No paused task found with ID: ${taskId}`);
+      // 1. Try to find a paused task with this ID
+      const removed = SCHEDULER.cancelPausedTask(id);
+      if (removed) {
+        // Store session mapping so runCycle can find and resume the session
+        if (removed.sessionInfo) {
+          SCHEDULER.storeSessionMapping(removed.task, removed.sessionInfo);
+        }
+        // Add the task back to tasks.md
+        addTask(removed.task);
+        await interaction.editReply(
+          `Paused task resumed and added back to queue!\n**Task:** ${removed.task}`,
+        );
         return;
       }
-      // Store session mapping so runCycle can find and resume the session
-      if (removed.sessionInfo) {
-        SCHEDULER.storeSessionMapping(removed.task, removed.sessionInfo);
+
+      // 2. Try to find a session with this ID
+      const session = SESSIONS.getSession(id);
+      if (session) {
+        const sessionFilePath = path.join(
+          CONFIG_DIR,
+          "sessions",
+          `${session.id}.jsonl`,
+        );
+        
+        // Store mapping for this session
+        SCHEDULER.storeSessionMapping(session.task, {
+          sessionId: session.id,
+          sessionFile: sessionFilePath,
+        });
+
+        // If it was in completed/interrupted, we don't necessarily need to move it back to active 
+        // here because runCycle will call SESSIONS.resumeSession anyway.
+        // But we must add the task back to the queue if it's not already there.
+        addTask(session.task);
+        
+        await interaction.editReply(
+          `Session ${session.id} resumed and task added back to queue!\n**Task:** ${session.task}`,
+        );
+        return;
       }
-      // Add the task back to tasks.md
-      addTask(removed.task);
-      await interaction.editReply(
-        `Task resumed and added back to queue!\n**Task:** ${removed.task}`,
-      );
+
+      await interaction.editReply(`No paused task or session found with ID: ${id}`);
     } catch (err) {
-      log(`Error resuming task: ${err.message}`);
-      await interaction.editReply(`Failed to resume task: ${err.message}`);
+      log(`Error resuming: ${err.message}`);
+      await interaction.editReply(`Failed to resume: ${err.message}`);
     }
   }
 
@@ -890,7 +918,7 @@ client.on("interactionCreate", async (interaction) => {
         `/scheduled - List scheduled tasks`,
         `/run-scheduled <id> - Run a scheduled task immediately`,
         `/paused - List paused tasks`,
-        `/resume <id> - Resume a paused task`,
+        `/resume <id> - Resume a paused task or session`,
         `/cancel <id> [type] - Cancel a task`,
         `/sessions - List active sessions`,
         `/statusinterval <minutes> - Set status update interval`,

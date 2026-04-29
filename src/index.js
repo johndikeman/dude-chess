@@ -68,6 +68,8 @@ function truncate(str, limit = 2000) {
 
 let isRunning = false;
 let currentRunningTask = null;
+let currentRunningModel = null;
+let currentRunningProvider = null;
 let pausedTaskInfo = null; // Store info about paused tasks for status display
 
 if (fs.existsSync(CONFIG_FILE)) {
@@ -132,6 +134,15 @@ const commands = [
       option
         .setName("description")
         .setDescription("The task description")
+        .setRequired(true),
+    ),
+  new SlashCommandBuilder()
+    .setName("heavy")
+    .setDescription("Add a new heavy task (uses more powerful model)")
+    .addStringOption((option) =>
+      option
+        .setName("description")
+        .setDescription("The heavy task description")
         .setRequired(true),
     ),
   new SlashCommandBuilder()
@@ -481,6 +492,19 @@ client.on("interactionCreate", async (interaction) => {
     }
   }
 
+  if (commandName === "heavy") {
+    const task = options.getString("description");
+    const heavyTask = `[HEAVY] ${task}`;
+    addTask(heavyTask);
+    await interaction.reply(`Heavy task added: ${task}`);
+
+    // If autoNext is enabled, start working if not already running
+    if (config.autoNext && !isRunning) {
+      log("autoNext is enabled, starting cycle after heavy task addition...");
+      runCycle();
+    }
+  }
+
   if (commandName === "tasks") {
     const tasks = getPendingTasks();
     if (tasks.length === 0) {
@@ -514,6 +538,9 @@ client.on("interactionCreate", async (interaction) => {
     if (isRunning && currentRunningTask) {
       statusLines.push(`Agent: **RUNNING**`);
       statusLines.push(`Current Task: ${currentRunningTask}`);
+      if (currentRunningModel && currentRunningModel !== MODEL_CODE) {
+        statusLines.push(`Current Model: **${currentRunningModel}** (Heavy Task)`);
+      }
     } else {
       // Check for paused tasks that haven't expired yet
       const schedule = SCHEDULER.loadSchedule();
@@ -882,6 +909,7 @@ client.on("interactionCreate", async (interaction) => {
       [
         `**Commands:**`,
         `/task <desc> - Add a task`,
+        `/heavy <desc> - Add a heavy task (uses more powerful model)`,
         `/tasks - List tasks`,
         `/status - Show status`,
         `/workdir <path> - Change working directory`,
@@ -1146,6 +1174,9 @@ async function runCycle(interaction, initialStatusMessage = null) {
     task = task.replace("[HEAVY]", "").trim();
   }
 
+  currentRunningModel = currentModelCode;
+  currentRunningProvider = currentModelProvider;
+
   // Check if this is a fallback retry task
   let isFallbackRetry = false;
   let originalTask = task;
@@ -1371,6 +1402,8 @@ ${prompt.substring(prompt.indexOf("You are a self-improving AI agent"))}`;
     if (statusUpdateInterval) clearInterval(statusUpdateInterval);
     isRunning = false;
     currentRunningTask = null;
+    currentRunningModel = null;
+    currentRunningProvider = null;
     pausedTaskInfo = null;
     log(`Failed to start pi process: ${err.message}`);
     currentStatus = `Failed to start.`;
@@ -1532,6 +1565,8 @@ ${prompt.substring(prompt.indexOf("You are a self-improving AI agent"))}`;
             if (statusUpdateInterval) clearInterval(statusUpdateInterval);
             isRunning = false;
             currentRunningTask = null;
+            currentRunningModel = null;
+            currentRunningProvider = null;
             pausedTaskInfo = null;
 
             // Add the task back to the queue (will pick up with fallback model on retry)
@@ -1603,6 +1638,8 @@ ${prompt.substring(prompt.indexOf("You are a self-improving AI agent"))}`;
               if (statusUpdateInterval) clearInterval(statusUpdateInterval);
               isRunning = false;
               currentRunningTask = null;
+              currentRunningModel = null;
+              currentRunningProvider = null;
               pausedTaskInfo = null;
 
               // Add the task back to the queue (will pick up with fallback model on retry)
@@ -1675,6 +1712,8 @@ ${prompt.substring(prompt.indexOf("You are a self-improving AI agent"))}`;
             if (statusUpdateInterval) clearInterval(statusUpdateInterval);
             isRunning = false;
             currentRunningTask = null;
+            currentRunningModel = null;
+            currentRunningProvider = null;
             pausedTaskInfo = null;
 
             // Add the task back to the queue (will pick up with fallback model on retry)
@@ -1723,6 +1762,8 @@ ${prompt.substring(prompt.indexOf("You are a self-improving AI agent"))}`;
     if (statusUpdateInterval) clearInterval(statusUpdateInterval);
     isRunning = false;
     currentRunningTask = null;
+    currentRunningModel = null;
+    currentRunningProvider = null;
     // Check if this was a quota pause
     const schedule = SCHEDULER.loadSchedule();
     const isQuotaPause =

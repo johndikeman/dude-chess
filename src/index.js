@@ -281,6 +281,15 @@ const commands = [
           { name: "disabled", value: "false" },
         ),
     ),
+  new SlashCommandBuilder()
+    .setName("notify")
+    .setDescription("Send a notification message to the channel")
+    .addStringOption((option) =>
+      option
+        .setName("message")
+        .setDescription("The message to send")
+        .setRequired(true),
+    ),
   new SlashCommandBuilder().setName("help").setDescription("Show help message"),
   new SlashCommandBuilder()
     .setName("modelcode")
@@ -431,6 +440,18 @@ async function checkAndRunScheduledTasks() {
       SCHEDULER.saveSchedule(ready.schedule);
       // Add task back to queue
       addTask(task.task);
+      
+      // Notify Discord
+      if (config.lastChannelId) {
+        try {
+          const channel = await client.channels.fetch(config.lastChannelId);
+          if (channel && channel.isTextBased()) {
+            await channel.send(`🔄 **Resuming paused task:** ${task.task}`);
+          }
+        } catch (e) {
+          log(`Failed to send resume notification: ${e.message}`);
+        }
+      }
     }
   }
 
@@ -905,6 +926,12 @@ client.on("interactionCreate", async (interaction) => {
     }
   }
 
+  if (commandName === "notify") {
+    const message = options.getString("message");
+    await interaction.reply({ content: `Notification sent: ${message}`, ephemeral: true });
+    await interaction.channel.send(`**Notification:** ${message}`);
+  }
+
   if (commandName === "help") {
     await interaction.reply(
       [
@@ -926,6 +953,7 @@ client.on("interactionCreate", async (interaction) => {
         `/fallbackmodel <model> - Set fallback model for quota errors`,
         `/fallbackenabled <true|false> - Enable/disable fallback on quota errors`,
         `/audit - Manually trigger self-audit`,
+        `/notify <message> - Send a notification`,
         `/restart - Restart the agent`,
         `/help - Show this message`,
       ].join("\n"),

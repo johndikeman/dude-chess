@@ -1,7 +1,8 @@
 import { Client, GatewayIntentBits } from 'discord.js';
 import 'dotenv/config';
+import fs from 'fs';
 
-async function notify(message) {
+export async function notify(message, targetChannelId = null) {
     if (!process.env.DISCORD_TOKEN) {
         console.error('DISCORD_TOKEN not set');
         return;
@@ -12,9 +13,22 @@ async function notify(message) {
     try {
         await client.login(process.env.DISCORD_TOKEN);
         
-        // Find a channel to send the message to
-        // We can try to use a channel ID from env if provided, or find the first text channel
-        const channelId = process.env.DISCORD_CHANNEL_ID;
+        // Priority: parameter > env > config.json > find first
+        let channelId = targetChannelId;
+        
+        if (!channelId) channelId = process.env.DISCORD_CHANNEL_ID;
+        
+        if (!channelId) {
+            // Try to load from config.json
+            try {
+                const configPath = './config.json';
+                if (fs.existsSync(configPath)) {
+                    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+                    channelId = config.lastChannelId;
+                }
+            } catch (e) {}
+        }
+
         let channel;
 
         if (channelId) {
@@ -43,5 +57,15 @@ async function notify(message) {
     }
 }
 
-const message = process.argv.slice(2).join(' ') || 'Notification from Dude Agent!';
-notify(message);
+if (import.meta.url === `file://${process.argv[1]}`) {
+    // Try to find a channel ID in the arguments (e.g., --channel ID)
+    let channelId = null;
+    const channelIdx = process.argv.indexOf('--channel');
+    if (channelIdx !== -1 && process.argv[channelIdx + 1]) {
+        channelId = process.argv[channelIdx + 1];
+        process.argv.splice(channelIdx, 2);
+    }
+
+    const message = process.argv.slice(2).join(' ') || 'Notification from Dude Agent!';
+    notify(message, channelId);
+}

@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fetchRecentGames } from './lichess.js';
+import { notify } from '../notify.js';
 
 const CONFIG_DIR = process.env.DUDE_CONFIG_DIR || process.cwd();
 const TASKS_FILE = path.join(CONFIG_DIR, 'tasks.md');
@@ -36,6 +37,7 @@ async function checkNewGames(username) {
     }
     
     console.log(`Found ${games.length} new games.`);
+    notify(`Found ${games.length} new Lichess games! Adding tasks to generate blog posts.`);
     
     // We want to process them from oldest to newest
     for (const game of games.reverse()) {

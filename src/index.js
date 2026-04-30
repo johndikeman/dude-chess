@@ -1115,6 +1115,13 @@ async function runCycle(interaction, initialStatusMessage = null) {
   currentRunningTask = task;
   log(`Working on task: ${task}`);
 
+  // Use local variables for model configuration to avoid affecting other tasks
+  let currentModelCode = MODEL_CODE;
+  let currentModelProvider = MODEL_PROVIDER;
+
+  currentRunningModel = currentModelCode;
+  currentRunningProvider = currentModelProvider;
+
   // Check if this is a fallback retry task
   let isFallbackRetry = false;
   let originalTask = task;
@@ -1135,9 +1142,11 @@ async function runCycle(interaction, initialStatusMessage = null) {
 
   // Switch to fallback model if this is a retry task
   if (isFallbackRetry && USE_FALLBACK_ON_QUOTA_ERROR && FALLBACK_MODEL_CODE) {
-    MODEL_CODE = FALLBACK_MODEL_CODE;
-    MODEL_PROVIDER = FALLBACK_MODEL_PROVIDER || "google-gemini-cli";
-    log(`Switched to fallback model: ${MODEL_CODE} (${MODEL_PROVIDER})`);
+    currentModelCode = FALLBACK_MODEL_CODE;
+    currentModelProvider = FALLBACK_MODEL_PROVIDER || "google-gemini-cli";
+    log(
+      `Switched to fallback model: ${currentModelCode} (${currentModelProvider})`,
+    );
   }
 
   const apiKey = await getGeminiApiKey();
@@ -1229,48 +1238,43 @@ Continuing the task: ${task}
 ${prompt.substring(prompt.indexOf("You are a self-improving agent"))}`;
         sessionOptions.prompt = continuePrompt.substring(0, 2000);
 
-        sessionOptions.lastModel = MODEL_CODE;
+        sessionOptions.lastModel = currentModelCode;
         sessionOptions.lastModelError = previousError;
         sessionOptions.fallbackRetryContext = {
           originalTask,
           previousModelError: previousError,
-          fallbackModelUsed: MODEL_CODE,
+          fallbackModelUsed: currentModelCode,
         };
-
-        // Update the existing session
-        SESSIONS.updateSession(previousSessionId, {
-          lastModel: MODEL_CODE,
-          originalFailureReason: previousError,
-          lastRetryAt: Date.now(),
-        });
       } else {
-        // No previous session found, create new session but track that we should have continued
+        // No active session found, check if we have a mapping for the original task
+        const mapping = SCHEDULER.getSessionMapping(originalTask);
+        if (mapping && mapping.sessionId) {
+          previousSessionId = mapping.sessionId;
+          log(
+            `Continuing from mapped session for original task: ${previousSessionId}`,
+          );
+        }
+
         sessionOptions.fallbackRetryContext = {
           originalTask,
           previousModelError: previousError,
-          fallbackModelUsed: MODEL_CODE,
-          noPreviousSession: true,
+          fallbackModelUsed: currentModelCode,
+          noPreviousSession: !previousSessionId,
         };
       }
     }
 
-    // existingSessionId will be here if we already had a session for this prompt in the sessions file
-    if (existingSessionId) {
-      // Update existing session with new info for this run
-      SESSIONS.updateSession(existingSessionId, {
-        discordMessageId: statusMessage ? statusMessage.id : null,
-        discordChannelId: statusMessage ? statusMessage.channelId : null,
-        workspacePath: config.workDir,
-      });
-      currentSessionId = existingSessionId;
+    // Decide which session to use
+    const sessionIdToUse = previousSessionId || existingSessionId;
+
+    if (sessionIdToUse) {
+      // Update/resume existing session
+      SESSIONS.resumeSession(sessionIdToUse, sessionOptions);
+      currentSessionId = sessionIdToUse;
       log(`Resumed session ${currentSessionId} for task: ${task}`);
     } else {
-      const session = SESSIONS.createSession(task, {
-        discordMessageId: statusMessage ? statusMessage.id : null,
-        discordChannelId: statusMessage ? statusMessage.channelId : null,
-        workspacePath: config.workDir,
-        prompt: prompt.substring(0, 2000), // Store prompt snippet
-      });
+      // Create new session
+      const session = SESSIONS.createSession(task, sessionOptions);
       currentSessionId = session.id;
       log(`Created session ${currentSessionId} for task: ${task}`);
     }
@@ -1302,9 +1306,9 @@ ${prompt.substring(prompt.indexOf("You are a self-improving agent"))}`;
 
   const piArgs = [
     "--provider",
-    MODEL_PROVIDER,
+    currentModelProvider,
     "--model",
-    MODEL_CODE,
+    currentModelCode,
     "--mode",
     "json",
     "--session",
@@ -1347,6 +1351,8 @@ ${prompt.substring(prompt.indexOf("You are a self-improving agent"))}`;
     if (statusUpdateInterval) clearInterval(statusUpdateInterval);
     isRunning = false;
     currentRunningTask = null;
+    currentRunningModel = null;
+    currentRunningProvider = null;
     pausedTaskInfo = null;
     log(`Failed to start pi process: ${err.message}`);
     currentStatus = `Failed to start.`;
@@ -1573,6 +1579,8 @@ ${prompt.substring(prompt.indexOf("You are a self-improving agent"))}`;
               if (statusUpdateInterval) clearInterval(statusUpdateInterval);
               isRunning = false;
               currentRunningTask = null;
+              currentRunningModel = null;
+              currentRunningProvider = null;
               pausedTaskInfo = null;
 
               // Add the task back to the queue (will pick up with fallback model on retry)
@@ -1645,6 +1653,8 @@ ${prompt.substring(prompt.indexOf("You are a self-improving agent"))}`;
             if (statusUpdateInterval) clearInterval(statusUpdateInterval);
             isRunning = false;
             currentRunningTask = null;
+            currentRunningModel = null;
+            currentRunningProvider = null;
             pausedTaskInfo = null;
 
             // Add the task back to the queue (will pick up with fallback model on retry)
@@ -1693,6 +1703,8 @@ ${prompt.substring(prompt.indexOf("You are a self-improving agent"))}`;
     if (statusUpdateInterval) clearInterval(statusUpdateInterval);
     isRunning = false;
     currentRunningTask = null;
+    currentRunningModel = null;
+    currentRunningProvider = null;
     // Check if this was a quota pause
     const schedule = SCHEDULER.loadSchedule();
     const isQuotaPause =

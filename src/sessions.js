@@ -88,6 +88,40 @@ export function getSessionByPR(prNumber, prRepo) {
   );
 }
 
+// Resume a session (move from completed back to active if needed)
+export function resumeSession(sessionId, updates = {}) {
+  const sessions = loadSessions();
+
+  // Check if it's already active
+  let index = sessions.active.findIndex((s) => s.id === sessionId);
+  if (index !== -1) {
+    sessions.active[index] = {
+      ...sessions.active[index],
+      ...updates,
+      status: "active",
+    };
+    saveSessions(sessions);
+    return sessions.active[index];
+  }
+
+  // Check if it's in completed
+  index = sessions.completed.findIndex((s) => s.id === sessionId);
+  if (index !== -1) {
+    const session = sessions.completed.splice(index, 1)[0];
+    const resumedSession = {
+      ...session,
+      ...updates,
+      status: "active",
+      completedAt: null,
+    };
+    sessions.active.push(resumedSession);
+    saveSessions(sessions);
+    return resumedSession;
+  }
+
+  return null;
+}
+
 // Update a session
 export function updateSession(sessionId, updates) {
   const sessions = loadSessions();

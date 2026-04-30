@@ -68,6 +68,8 @@ function truncate(str, limit = 2000) {
 
 let isRunning = false;
 let currentRunningTask = null;
+let currentRunningModel = null;
+let currentRunningProvider = null;
 let pausedTaskInfo = null; // Store info about paused tasks for status display
 
 if (fs.existsSync(CONFIG_FILE)) {
@@ -132,6 +134,15 @@ const commands = [
       option
         .setName("description")
         .setDescription("The task description")
+        .setRequired(true),
+    ),
+  new SlashCommandBuilder()
+    .setName("heavy")
+    .setDescription("Add a new heavy task (uses more powerful model)")
+    .addStringOption((option) =>
+      option
+        .setName("description")
+        .setDescription("The heavy task description")
         .setRequired(true),
     ),
   new SlashCommandBuilder()
@@ -470,6 +481,19 @@ client.on("interactionCreate", async (interaction) => {
     }
   }
 
+  if (commandName === "heavy") {
+    const task = options.getString("description");
+    const heavyTask = `[HEAVY] ${task}`;
+    addTask(heavyTask);
+    await interaction.reply(`Heavy task added: ${task}`);
+
+    // If autoNext is enabled, start working if not already running
+    if (config.autoNext && !isRunning) {
+      log("autoNext is enabled, starting cycle after heavy task addition...");
+      runCycle();
+    }
+  }
+
   if (commandName === "tasks") {
     const tasks = getPendingTasks();
     if (tasks.length === 0) {
@@ -503,6 +527,9 @@ client.on("interactionCreate", async (interaction) => {
     if (isRunning && currentRunningTask) {
       statusLines.push(`Agent: **RUNNING**`);
       statusLines.push(`Current Task: ${currentRunningTask}`);
+      if (currentRunningModel && currentRunningModel !== MODEL_CODE) {
+        statusLines.push(`Current Model: **${currentRunningModel}** (Heavy Task)`);
+      }
     } else {
       // Check for paused tasks that haven't expired yet
       const schedule = SCHEDULER.loadSchedule();
@@ -1115,6 +1142,29 @@ async function runCycle(interaction, initialStatusMessage = null) {
   currentRunningTask = task;
   log(`Working on task: ${task}`);
 
+  // Use local variables for model configuration to avoid affecting other tasks
+  let currentModelCode = MODEL_CODE;
+  let currentModelProvider = MODEL_PROVIDER;
+
+  // Check if this is a heavy task
+  if (task.startsWith("[HEAVY]")) {
+    log(
+      `Heavy task detected. Using fallback model: ${FALLBACK_MODEL_CODE || "gemini-3-pro-preview"}`,
+    );
+    if (FALLBACK_MODEL_CODE) {
+      currentModelCode = FALLBACK_MODEL_CODE;
+      currentModelProvider = FALLBACK_MODEL_PROVIDER || "google-gemini-cli";
+    } else {
+      // Default to a known pro model if no fallback configured
+      currentModelCode = "gemini-3-pro-preview";
+      currentModelProvider = "google-gemini-cli";
+    }
+    task = task.replace("[HEAVY]", "").trim();
+  }
+
+  currentRunningModel = currentModelCode;
+  currentRunningProvider = currentModelProvider;
+
   // Check if this is a fallback retry task
   let isFallbackRetry = false;
   let originalTask = task;
@@ -1135,9 +1185,11 @@ async function runCycle(interaction, initialStatusMessage = null) {
 
   // Switch to fallback model if this is a retry task
   if (isFallbackRetry && USE_FALLBACK_ON_QUOTA_ERROR && FALLBACK_MODEL_CODE) {
-    MODEL_CODE = FALLBACK_MODEL_CODE;
-    MODEL_PROVIDER = FALLBACK_MODEL_PROVIDER || "google-gemini-cli";
-    log(`Switched to fallback model: ${MODEL_CODE} (${MODEL_PROVIDER})`);
+    currentModelCode = FALLBACK_MODEL_CODE;
+    currentModelProvider = FALLBACK_MODEL_PROVIDER || "google-gemini-cli";
+    log(
+      `Switched to fallback model: ${currentModelCode} (${currentModelProvider})`,
+    );
   }
 
   const apiKey = await getGeminiApiKey();
@@ -1217,7 +1269,7 @@ Context:
       if (activeSessions.length > 0) {
         const prevSession = activeSessions[0];
         previousSessionId = prevSession.id;
-        log(`Continuing from previous session: ${previousSessionId}`);
+        log(`Continuing from previous active session: ${previousSessionId}`);
 
         // Build the prompt to resume with context from previous run
         const continuePrompt = `RESUME MODE: This is a continuation of a previous session that was interrupted due to a quota error. 
@@ -1226,65 +1278,48 @@ Previous error was: ${previousError}
 
 Continuing the task: ${task}
 
-${prompt.substring(prompt.indexOf("You are a self-improving agent"))}`;
+${prompt.substring(prompt.indexOf("You are a self-improving AI agent"))}`;
         sessionOptions.prompt = continuePrompt.substring(0, 2000);
 
-        sessionOptions.lastModel = MODEL_CODE;
+        sessionOptions.lastModel = currentModelCode;
         sessionOptions.lastModelError = previousError;
         sessionOptions.fallbackRetryContext = {
           originalTask,
           previousModelError: previousError,
-          fallbackModelUsed: MODEL_CODE,
+          fallbackModelUsed: currentModelCode,
         };
-
-        // Update the existing session
-        SESSIONS.updateSession(previousSessionId, {
-          lastModel: MODEL_CODE,
-          originalFailureReason: previousError,
-          lastRetryAt: Date.now(),
-        });
       } else {
-        // No previous session found, create new session but track that we should have continued
+        // No active session found, check if we have a mapping for the original task
+        const mapping = SCHEDULER.getSessionMapping(originalTask);
+        if (mapping && mapping.sessionId) {
+          previousSessionId = mapping.sessionId;
+          log(
+            `Continuing from mapped session for original task: ${previousSessionId}`,
+          );
+        }
+
         sessionOptions.fallbackRetryContext = {
           originalTask,
           previousModelError: previousError,
-          fallbackModelUsed: MODEL_CODE,
-          noPreviousSession: true,
+          fallbackModelUsed: currentModelCode,
+          noPreviousSession: !previousSessionId,
         };
       }
     }
 
-    // existingSessionId will be here if we already had a session for this prompt in the sessions file
-    if (existingSessionId) {
-      // Update existing session with new info for this run
-      SESSIONS.updateSession(existingSessionId, {
-        discordMessageId: statusMessage ? statusMessage.id : null,
-        discordChannelId: statusMessage ? statusMessage.channelId : null,
-        workspacePath: config.workDir,
-      });
-      currentSessionId = existingSessionId;
+    // Decide which session to use
+    const sessionIdToUse = previousSessionId || existingSessionId;
+
+    if (sessionIdToUse) {
+      // Update/resume existing session
+      SESSIONS.resumeSession(sessionIdToUse, sessionOptions);
+      currentSessionId = sessionIdToUse;
       log(`Resumed session ${currentSessionId} for task: ${task}`);
     } else {
-      const session = SESSIONS.createSession(task, {
-        discordMessageId: statusMessage ? statusMessage.id : null,
-        discordChannelId: statusMessage ? statusMessage.channelId : null,
-        workspacePath: config.workDir,
-        prompt: prompt.substring(0, 2000), // Store prompt snippet
-      });
-      currentSessionId = session.id;
-      log(`Created session ${currentSessionId} for task: ${task}`);
-    }
-
-    // Only create new session if we're not continuing from a previous one
-    if (!isFallbackRetry || !previousSessionId) {
+      // Create new session
       const session = SESSIONS.createSession(task, sessionOptions);
       currentSessionId = session.id;
-      log(
-        `Created session ${currentSessionId} for task: ${task}${isFallbackRetry ? " (fallback retry, no previous session)" : ""}`,
-      );
-    } else {
-      currentSessionId = previousSessionId;
-      log(`Continuing session ${currentSessionId} for fallback retry: ${task}`);
+      log(`Created session ${currentSessionId} for task: ${task}`);
     }
   } catch (e) {
     log(`Failed to manage session: ${e.message}`);
@@ -1296,15 +1331,23 @@ ${prompt.substring(prompt.indexOf("You are a self-improving agent"))}`;
     `${currentSessionId || Date.now()}.jsonl`,
   );
 
+  // Store mapping for auto-resume if interrupted
+  if (currentSessionId) {
+    SCHEDULER.storeSessionMapping(task, {
+      sessionId: currentSessionId,
+      sessionFile: sessionFilePath,
+    });
+  }
+
   if (!fs.existsSync(path.dirname(sessionFilePath))) {
     fs.mkdirSync(path.dirname(sessionFilePath), { recursive: true });
   }
 
   const piArgs = [
     "--provider",
-    MODEL_PROVIDER,
+    currentModelProvider,
     "--model",
-    MODEL_CODE,
+    currentModelCode,
     "--mode",
     "json",
     "--session",
@@ -1347,6 +1390,8 @@ ${prompt.substring(prompt.indexOf("You are a self-improving agent"))}`;
     if (statusUpdateInterval) clearInterval(statusUpdateInterval);
     isRunning = false;
     currentRunningTask = null;
+    currentRunningModel = null;
+    currentRunningProvider = null;
     pausedTaskInfo = null;
     log(`Failed to start pi process: ${err.message}`);
     currentStatus = `Failed to start.`;
@@ -1493,7 +1538,7 @@ ${prompt.substring(prompt.indexOf("You are a self-improving agent"))}`;
             // The session file will persist the model info for continuation
             try {
               SESSIONS.updateSession(currentSessionId, {
-                lastModel: MODEL_CODE,
+                lastModel: currentModelCode,
                 fallbackModelUsed: FALLBACK_MODEL_CODE,
                 lastModelError: quotaErrorInfo.errorMessage,
               });
@@ -1508,6 +1553,8 @@ ${prompt.substring(prompt.indexOf("You are a self-improving agent"))}`;
             if (statusUpdateInterval) clearInterval(statusUpdateInterval);
             isRunning = false;
             currentRunningTask = null;
+            currentRunningModel = null;
+            currentRunningProvider = null;
             pausedTaskInfo = null;
 
             // Add the task back to the queue (will pick up with fallback model on retry)
@@ -1608,6 +1655,13 @@ ${prompt.substring(prompt.indexOf("You are a self-improving agent"))}`;
 
               // Schedule task as a scheduled task for after quota reset
               SCHEDULER.scheduleTask(task, paused.resumeAt, "quota_resume");
+              updateDiscordStatus(true);
+
+              // Kill current pi process after a short delay to allow status update to finish
+              setTimeout(() => {
+                log(`Killing pi process due to task pause: ${task}`);
+                piProcess.kill("SIGINT");
+              }, 1000);
             }
           }
         }
@@ -1693,6 +1747,8 @@ ${prompt.substring(prompt.indexOf("You are a self-improving agent"))}`;
     if (statusUpdateInterval) clearInterval(statusUpdateInterval);
     isRunning = false;
     currentRunningTask = null;
+    currentRunningModel = null;
+    currentRunningProvider = null;
     // Check if this was a quota pause
     const schedule = SCHEDULER.loadSchedule();
     const isQuotaPause =
@@ -1883,6 +1939,8 @@ The summary should be suitable for a status display (e.g., "[STATUS] Implementin
 Only output the status line starting with [STATUS]. Use lowercase writing and a semi-informal tone.`;
 
   const piArgs = [
+    "--provider",
+    MODEL_PROVIDER,
     "--model",
     config.statusUpdateModel || "gemini-2.0-flash",
     "--session",

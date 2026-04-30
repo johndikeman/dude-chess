@@ -209,12 +209,27 @@ const commands = [
     .setDescription("List scheduled tasks"),
   new SlashCommandBuilder()
     .setName("resume")
-    .setDescription("Resume a paused task immediately")
+    .setDescription("Resume a paused task or session immediately")
     .addStringOption((option) =>
       option
         .setName("id")
-        .setDescription("The ID of the paused task")
+        .setDescription("The ID of the paused task or session")
         .setRequired(true),
+    ),
+  new SlashCommandBuilder()
+    .setName("notify")
+    .setDescription("Notify a user or channel about task completion")
+    .addStringOption((option) =>
+      option
+        .setName("message")
+        .setDescription("Message to send")
+        .setRequired(true),
+    )
+    .addChannelOption((option) =>
+      option
+        .setName("channel")
+        .setDescription("Channel to notify (defaults to current)")
+        .setRequired(false),
     ),
   new SlashCommandBuilder()
     .setName("cancel")
@@ -310,7 +325,18 @@ const commands = [
     ),
   new SlashCommandBuilder()
     .setName("sessions")
-    .setDescription("List active sessions that can be resumed via reply"),
+    .setDescription("List sessions")
+    .addStringOption((option) =>
+      option
+        .setName("filter")
+        .setDescription("Filter sessions (active, completed, all)")
+        .setRequired(false)
+        .addChoices(
+          { name: "active", value: "active" },
+          { name: "completed", value: "completed" },
+          { name: "all", value: "all" },
+        ),
+    ),
   new SlashCommandBuilder()
     .setName("linkpr")
     .setDescription(
@@ -706,26 +732,74 @@ client.on("interactionCreate", async (interaction) => {
   }
 
   if (commandName === "resume") {
-    const taskId = options.getString("id");
+    const id = options.getString("id");
     await interaction.deferReply();
     try {
-      const removed = SCHEDULER.cancelPausedTask(taskId);
-      if (!removed) {
-        await interaction.editReply(`No paused task found with ID: ${taskId}`);
+      // 1. Try to find in paused tasks (quota)
+      let removed = SCHEDULER.cancelPausedTask(id);
+      let taskToResume = null;
+      let sessionInfo = null;
+
+      if (removed) {
+        taskToResume = removed.task;
+        sessionInfo = removed.sessionInfo;
+        log(`Resuming paused task: ${taskToResume}`);
+      } else {
+        // 2. Try to find in sessions (active or completed)
+        const session = SESSIONS.getSession(id);
+        if (session) {
+          taskToResume = session.task;
+          sessionInfo = {
+            sessionId: session.id,
+            sessionFile: path.join(
+              CONFIG_DIR,
+              "sessions",
+              `${session.id}.jsonl`,
+            ),
+          };
+          log(`Resuming session: ${id} (${taskToResume})`);
+        }
+      }
+
+      if (!taskToResume) {
+        await interaction.editReply(
+          `No paused task or session found with ID: ${id}`,
+        );
         return;
       }
+
       // Store session mapping so runCycle can find and resume the session
-      if (removed.sessionInfo) {
-        SCHEDULER.storeSessionMapping(removed.task, removed.sessionInfo);
+      if (sessionInfo) {
+        SCHEDULER.storeSessionMapping(taskToResume, sessionInfo);
       }
+
       // Add the task back to tasks.md
-      addTask(removed.task);
+      addTask(taskToResume);
       await interaction.editReply(
-        `Task resumed and added back to queue!\n**Task:** ${removed.task}`,
+        `Task/Session resumed and added back to queue!\n**Task:** ${taskToResume}`,
       );
+
+      // If autoNext is enabled, start working if not already running
+      if (config.autoNext && !isRunning) {
+        log("autoNext is enabled, starting cycle after manual resume...");
+        runCycle();
+      }
     } catch (err) {
-      log(`Error resuming task: ${err.message}`);
-      await interaction.editReply(`Failed to resume task: ${err.message}`);
+      log(`Error resuming: ${err.message}`);
+      await interaction.editReply(`Failed to resume: ${err.message}`);
+    }
+  }
+
+  if (commandName === "notify") {
+    const message = options.getString("message");
+    const targetChannel = options.getChannel("channel") || interaction.channel;
+
+    try {
+      await targetChannel.send(`[NOTIFICATION] ${message}`);
+      await interaction.reply({ content: "Notification sent!", ephemeral: true });
+    } catch (err) {
+      log(`Error sending notification: ${err.message}`);
+      await interaction.reply({ content: `Failed to send notification: ${err.message}`, ephemeral: true });
     }
   }
 
@@ -789,19 +863,36 @@ client.on("interactionCreate", async (interaction) => {
   }
 
   if (commandName === "sessions") {
-    const activeSessions = SESSIONS.getActiveSessions();
-    if (activeSessions.length === 0) {
-      await interaction.reply(
-        "No active sessions. Run a task with `/start` to create one.",
+    const filter = options.getString("filter") || "active";
+    const sessions = SESSIONS.loadSessions();
+    let displaySessions = [];
+
+    if (filter === "active" || filter === "all") {
+      displaySessions = displaySessions.concat(
+        sessions.active.map((s) => ({ ...s, type: "ACTIVE" })),
       );
+    }
+    if (filter === "completed" || filter === "all") {
+      displaySessions = displaySessions.concat(
+        sessions.completed.map((s) => ({ ...s, type: "COMPLETED" })),
+      );
+    }
+
+    if (displaySessions.length === 0) {
+      await interaction.reply(`No ${filter} sessions found.`);
     } else {
-      const list = activeSessions
+      // Sort by creation time, newest first
+      displaySessions.sort((a, b) => b.createdAt - a.createdAt);
+
+      const list = displaySessions
+        .slice(0, 10) // Limit to 10 for display
         .map(
           (s) =>
-            `[ID: ${s.id}] ${s.task.substring(0, 50)}${s.task.length > 50 ? "..." : ""}\n  Created: ${s.createdAt}${s.discordMessageId ? "\n  Reply to my Discord message to resume" : ""}${s.prNumber ? `\n  Linked to PR #${s.prNumber} (comment /resume to resume)` : ""}`,
+            `[ID: ${s.id}] [${s.type}] ${s.task.substring(0, 50)}${s.task.length > 50 ? "..." : ""}\n  Created: ${new Date(s.createdAt).toLocaleString()}${s.discordMessageId ? "\n  Reply to message to resume" : ""}${s.prNumber ? `\n  Linked to PR #${s.prNumber}` : ""}`,
         )
         .join("\n\n");
-      let response = `**Active Sessions:**\n\n${list}`;
+
+      let response = `**${filter.toUpperCase()} Sessions (showing top 10):**\n\n${list}`;
       if (response.length > 2000) {
         response = response.slice(0, 1990) + "... (truncated)";
       }
@@ -1246,6 +1337,13 @@ Context:
     log(`Resuming task from existing session: ${existingSessionId}`);
     // Clear the session mapping since we're using it now
     SCHEDULER.clearSessionMapping(task);
+  } else if (task.startsWith("Resume session ")) {
+    // Extract session ID from automated feedback tasks
+    const match = task.match(/^Resume session (\d+)/);
+    if (match) {
+      existingSessionId = match[1];
+      log(`Detected automated resume request for session: ${existingSessionId}`);
+    }
   }
 
   // Create a session for this task run

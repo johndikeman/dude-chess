@@ -35,3 +35,7 @@
 - `/workdir <path>`: Update the directory where the agent operates.
 - `/clone <repo>`: Clone a new repository and set it as the workDir.
 - `/restart`: Restarts the process (useful for applying updates).
+- `/heavy <task>`: Add a task that will be processed by a more powerful model.
+- `/resume <id>`: Resume a paused task (quota) or a session by its ID.
+- `/sessions [filter]`: List active, completed, or all sessions.
+- `/notify <message> [channel]`: Send a notification to a Discord channel.

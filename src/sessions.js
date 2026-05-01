@@ -1,25 +1,32 @@
 import fs from "fs";
 import path from "path";
 
-const CONFIG_DIR = process.env.DUDE_CONFIG_DIR || process.cwd();
-const SESSIONS_FILE = path.join(CONFIG_DIR, "sessions.json");
-const LOG_FILE = path.join(CONFIG_DIR, "agent.log");
+function getCONFIG_DIR() {
+  return process.env.DUDE_CONFIG_DIR || process.cwd();
+}
+function getSESSIONS_FILE() {
+  return path.join(getCONFIG_DIR(), "sessions.json");
+}
+function getLOG_FILE() {
+  return path.join(getCONFIG_DIR(), "agent.log");
+}
 
 function log(msg) {
   const line = `[${new Date().toISOString()}] ${msg}`;
   console.log(line);
   try {
-    fs.appendFileSync(LOG_FILE, line + "\n");
+    fs.appendFileSync(getLOG_FILE(), line + "\n");
   } catch (e) {}
 }
 
 // Load sessions from file
 export function loadSessions() {
-  if (!fs.existsSync(SESSIONS_FILE)) {
+  const sessionsFile = getSESSIONS_FILE();
+  if (!fs.existsSync(sessionsFile)) {
     return { active: [], completed: [] };
   }
   try {
-    const content = fs.readFileSync(SESSIONS_FILE, "utf8");
+    const content = fs.readFileSync(sessionsFile, "utf8");
     return JSON.parse(content);
   } catch (e) {
     log(`Error loading sessions: ${e.message}`);
@@ -29,7 +36,7 @@ export function loadSessions() {
 
 // Save sessions to file
 export function saveSessions(sessions) {
-  fs.writeFileSync(SESSIONS_FILE, JSON.stringify(sessions, null, 2));
+  fs.writeFileSync(getSESSIONS_FILE(), JSON.stringify(sessions, null, 2));
 }
 
 // Create a new session entry
@@ -107,6 +114,40 @@ export function linkDiscordMessage(sessionId, messageId, channelId) {
 // Link a PR to a session
 export function linkPR(sessionId, prNumber, prRepo) {
   return updateSession(sessionId, { prNumber, prRepo });
+}
+
+// Resume a session (move from completed back to active if needed)
+export function resumeSession(sessionId, updates = {}) {
+  const sessions = loadSessions();
+
+  // Check if it's already active
+  let index = sessions.active.findIndex((s) => s.id === sessionId);
+  if (index !== -1) {
+    sessions.active[index] = {
+      ...sessions.active[index],
+      ...updates,
+      status: "active",
+    };
+    saveSessions(sessions);
+    return sessions.active[index];
+  }
+
+  // Check if it's in completed
+  index = sessions.completed.findIndex((s) => s.id === sessionId);
+  if (index !== -1) {
+    const session = sessions.completed.splice(index, 1)[0];
+    const resumedSession = {
+      ...session,
+      ...updates,
+      status: "active",
+      completedAt: null,
+    };
+    sessions.active.push(resumedSession);
+    saveSessions(sessions);
+    return resumedSession;
+  }
+
+  return null;
 }
 
 // Finish a session with a specific status

@@ -43,9 +43,11 @@ async function testAuditModule() {
 async function testAddDuplicateTask() {
   log("Testing addTask duplicate prevention...");
 
-  const TASKS_FILE = process.env.DUDE_CONFIG_DIR
-    ? path.join(process.env.DUDE_CONFIG_DIR, "tasks.md")
-    : "./tasks.md";
+  const TEST_CONFIG_DIR = "./test_temp_config";
+  if (!fs.existsSync(TEST_CONFIG_DIR)) {
+    fs.mkdirSync(TEST_CONFIG_DIR, { recursive: true });
+  }
+  const TASKS_FILE = path.join(TEST_CONFIG_DIR, "tasks.md");
 
   // Create a test tasks file
   const testContent = "# Pending Tasks\n- [ ] Test task 1\n- [ ] Test task 2\n";
@@ -76,6 +78,9 @@ async function testAddDuplicateTask() {
 
   // Clean up test file
   fs.unlinkSync(TASKS_FILE);
+  if (fs.existsSync(TEST_CONFIG_DIR)) {
+    fs.rmdirSync(TEST_CONFIG_DIR);
+  }
   log("✓ Test cleanup complete");
 
   return true;

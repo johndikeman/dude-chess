@@ -2,28 +2,41 @@ import fs from 'fs';
 import path from 'path';
 import { fetchRecentGames } from './lichess.js';
 
-const CONFIG_DIR = process.env.DUDE_CONFIG_DIR || process.cwd();
-const TASKS_FILE = path.join(CONFIG_DIR, 'tasks.md');
-const TRACKING_FILE = path.join(CONFIG_DIR, 'lichess-tracking.json');
+function getCONFIG_DIR() {
+  return process.env.DUDE_CONFIG_DIR || process.cwd();
+}
+function getTASKS_FILE() {
+  return path.join(getCONFIG_DIR(), "tasks.md");
+}
+function getTRACKING_FILE() {
+  return path.join(getCONFIG_DIR(), "lichess-tracking.json");
+}
 
 function loadTracking() {
-    if (fs.existsSync(TRACKING_FILE)) {
-        return JSON.parse(fs.readFileSync(TRACKING_FILE, 'utf8'));
-    }
-    return { lastCheckedGameId: null };
+  const trackingFile = getTRACKING_FILE();
+  if (fs.existsSync(trackingFile)) {
+    return JSON.parse(fs.readFileSync(trackingFile, "utf8"));
+  }
+  return { lastCheckedGameId: null };
 }
 
 function saveTracking(tracking) {
-    fs.writeFileSync(TRACKING_FILE, JSON.stringify(tracking, null, 2));
+  fs.writeFileSync(getTRACKING_FILE(), JSON.stringify(tracking, null, 2));
 }
 
 function addTask(task) {
-    let content = fs.existsSync(TASKS_FILE) ? fs.readFileSync(TASKS_FILE, 'utf8') : "# Pending Tasks\n";
-    if (!content.includes("# Pending Tasks")) {
-      content = "# Pending Tasks\n" + content;
-    }
-    content = content.replace("# Pending Tasks\n", `# Pending Tasks\n- [ ] ${task}\n`);
-    fs.writeFileSync(TASKS_FILE, content);
+  const tasksFile = getTASKS_FILE();
+  let content = fs.existsSync(tasksFile)
+    ? fs.readFileSync(tasksFile, "utf8")
+    : "# Pending Tasks\n";
+  if (!content.includes("# Pending Tasks")) {
+    content = "# Pending Tasks\n" + content;
+  }
+  content = content.replace(
+    "# Pending Tasks\n",
+    `# Pending Tasks\n- [ ] ${task}\n`,
+  );
+  fs.writeFileSync(tasksFile, content);
 }
 
 async function checkNewGames(username) {
@@ -59,20 +72,18 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     if (username) {
         checkNewGames(username).catch(console.error);
     } else {
-        const configPath = path.join(CONFIG_DIR, "config.json");
-        if (fs.existsSync(configPath)) {
-            const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
-            if (config.lichessUsername) {
-                checkNewGames(config.lichessUsername).catch(console.error);
-            } else {
-                console.error(
-                    "No LICHESS_USERNAME env var and no lichessUsername found in config.json",
-                );
-            }
-        } else {
-            console.error(
-                "No LICHESS_USERNAME env var and config.json not found",
-            );
-        }
+    const configPath = path.join(getCONFIG_DIR(), "config.json");
+    if (fs.existsSync(configPath)) {
+      const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+      if (config.lichessUsername) {
+        checkNewGames(config.lichessUsername).catch(console.error);
+      } else {
+        console.error(
+          "No LICHESS_USERNAME env var and no lichessUsername found in config.json",
+        );
+      }
+    } else {
+      console.error("No LICHESS_USERNAME env var and config.json not found");
     }
+  }
 }
